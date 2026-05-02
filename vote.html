@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portail de Vote | Passion Football</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/vote.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+</head>
+<body>
+
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="vote-main">
+        <header class="vote-header">
+            <span class="subtitle">PORTAIL DE VOTE</span>
+            <h1 id="voteTitle">CHARGEMENT...</h1>
+            <div id="voteCountdown" class="vote-countdown"></div>
+        </header>
+
+        <!-- État : pas de vote ouvert -->
+        <div id="noVoteState" class="state-box" style="display:none;">
+            <div class="state-icon">⏸</div>
+            <h2>Aucun vote ouvert pour le moment</h2>
+            <p>Le superadmin doit annoncer un match pour ouvrir une nouvelle session de vote (durée 72h).</p>
+            <a href="dashboard.html" class="btn-back">RETOUR AU DASHBOARD</a>
+        </div>
+
+        <!-- État : déjà voté -->
+        <div id="alreadyVotedState" class="state-box success" style="display:none;">
+            <div class="state-icon">✓</div>
+            <h2>Tu as déjà voté pour ce match</h2>
+            <p>Merci ! Les résultats seront visibles à la fermeture du vote.</p>
+            <a href="dashboard.html" class="btn-back">RETOUR AU DASHBOARD</a>
+        </div>
+
+        <!-- Formulaire de vote -->
+        <form id="voteForm" class="vote-form" style="display:none;">
+            <div class="vote-grid">
+                <div class="vote-cat" data-cat="att">
+                    <h3><span class="cat-icon">⚽</span> MEILLEUR ATTAQUANT</h3>
+                    <p class="cat-hint">Top 3 (10/5/3 pts)</p>
+                    <div class="rank-row">
+                        <label>1er</label>
+                        <select class="sel-1" required></select>
+                    </div>
+                    <div class="rank-row">
+                        <label>2ème</label>
+                        <select class="sel-2"></select>
+                    </div>
+                    <div class="rank-row">
+                        <label>3ème</label>
+                        <select class="sel-3"></select>
+                    </div>
+                </div>
+
+                <div class="vote-cat" data-cat="def">
+                    <h3><span class="cat-icon">🛡️</span> MEILLEUR DÉFENSEUR</h3>
+                    <p class="cat-hint">Top 3 (10/5/3 pts)</p>
+                    <div class="rank-row"><label>1er</label><select class="sel-1" required></select></div>
+                    <div class="rank-row"><label>2ème</label><select class="sel-2"></select></div>
+                    <div class="rank-row"><label>3ème</label><select class="sel-3"></select></div>
+                </div>
+
+                <div class="vote-cat" data-cat="mid">
+                    <h3><span class="cat-icon">⚙️</span> MEILLEUR MILIEU</h3>
+                    <p class="cat-hint">Top 3 (10/5/3 pts)</p>
+                    <div class="rank-row"><label>1er</label><select class="sel-1" required></select></div>
+                    <div class="rank-row"><label>2ème</label><select class="sel-2"></select></div>
+                    <div class="rank-row"><label>3ème</label><select class="sel-3"></select></div>
+                </div>
+
+                <div class="vote-cat" data-cat="gkd">
+                    <h3><span class="cat-icon">🧤</span> MEILLEUR GARDIEN</h3>
+                    <p class="cat-hint">Top 3 (10/5/3 pts)</p>
+                    <div class="rank-row"><label>1er</label><select class="sel-1" required></select></div>
+                    <div class="rank-row"><label>2ème</label><select class="sel-2"></select></div>
+                    <div class="rank-row"><label>3ème</label><select class="sel-3"></select></div>
+                </div>
+            </div>
+
+            <div class="vote-error" id="voteError"></div>
+            <button type="submit" class="btn-submit-vote" id="btnSubmitVote">VALIDER MON VOTE</button>
+        </form>
+    </main>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import {
+            collection, getDocs, doc, getDoc, setDoc, query, where, orderBy, limit, updateDoc
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        const session = await requireAuth();
+        injectSidebar(session);
+
+        const POSTE_TO_CAT = {
+            'Attaquant': 'att',
+            'Défenseur': 'def',
+            'Milieu': 'mid',
+            'Gardien': 'gkd'
+        };
+        // Les joueurs sans poste précis sont éligibles partout
+        const ALL_CATS = ['att', 'def', 'mid', 'gkd'];
+
+        let activeMatch = null;
+        let joueurs = [];
+        let countdownTimer = null;
+
+        async function findActiveMatch() {
+            try {
+                const q = query(
+                    collection(db, "matchs"),
+                    where("statut", "==", "vote_ouvert"),
+                    orderBy("annonce_at", "desc"),
+                    limit(1)
+                );
+                const snap = await getDocs(q);
+                if (snap.empty) return null;
+                const m = snap.docs[0];
+                const data = m.data();
+                const closeMs = data.vote_close_at?.toMillis ? data.vote_close_at.toMillis() : 0;
+                if (closeMs <= Date.now()) {
+                    // Auto-fermeture
+                    await updateDoc(m.ref, { statut: 'vote_ferme' });
+                    return null;
+                }
+                return { id: m.id, ...data, _closeMs: closeMs };
+            } catch (e) {
+                console.warn("Pas d'index ou collection vide:", e.message);
+                return null;
+            }
+        }
+
+        async function dejaVote(matchDate, voterId) {
+            const q = query(
+                collection(db, "votes"),
+                where("match_date", "==", matchDate),
+                where("voter_id", "==", voterId)
+            );
+            const snap = await getDocs(q);
+            return !snap.empty;
+        }
+
+        async function chargerJoueurs() {
+            const snap = await getDocs(collection(db, "users"));
+            joueurs = [];
+            snap.forEach(d => {
+                const u = { id: d.id, ...d.data() };
+                // Filtrer les joueurs en retard de 1+ mois (cohérence avec sanctions)
+                if ((u.mois_retard || 0) < 1) joueurs.push(u);
+            });
+        }
+
+        // Helper : récupère les postes d'un joueur (multi, avec rétrocompat 'poste')
+        function getPostes(j) {
+            if (Array.isArray(j.postes) && j.postes.length) return j.postes;
+            if (typeof j.poste === 'string' && j.poste) return [j.poste];
+            return [];
+        }
+
+        function remplirSelects() {
+            // Un joueur multi-postes apparaît dans CHAQUE catégorie où il est éligible.
+            // Les joueurs sans poste sont éligibles à toutes les catégories.
+            ALL_CATS.forEach(cat => {
+                const eligibles = joueurs.filter(j => {
+                    const postes = getPostes(j);
+                    if (postes.length === 0) return true; // sans poste = éligible partout
+                    const cats = postes.map(p => POSTE_TO_CAT[p]).filter(Boolean);
+                    return cats.includes(cat);
+                });
+                const opts = '<option value="">— Choisir —</option>' +
+                    eligibles.map(j => `<option value="${j.id}">${j.pseudo}</option>`).join('');
+                document.querySelectorAll(`.vote-cat[data-cat="${cat}"] select`).forEach(s => {
+                    s.innerHTML = opts;
+                });
+            });
+        }
+
+        function setupCountdown(closeMs) {
+            const el = document.getElementById('voteCountdown');
+            const tick = () => {
+                const remaining = closeMs - Date.now();
+                if (remaining <= 0) {
+                    el.textContent = "Vote fermé";
+                    clearInterval(countdownTimer);
+                    return;
+                }
+                const h = Math.floor(remaining / 3600000);
+                const min = Math.floor((remaining % 3600000) / 60000);
+                const sec = Math.floor((remaining % 60000) / 1000);
+                el.textContent = `Fermeture dans ${h}h ${String(min).padStart(2,'0')}min ${String(sec).padStart(2,'0')}s`;
+            };
+            tick();
+            countdownTimer = setInterval(tick, 1000);
+        }
+
+        async function submitVote(e) {
+            e.preventDefault();
+            const errEl = document.getElementById('voteError');
+            errEl.textContent = '';
+
+            const collect = (cat) => {
+                const el = document.querySelector(`.vote-cat[data-cat="${cat}"]`);
+                return {
+                    rank1: el.querySelector('.sel-1').value,
+                    rank2: el.querySelector('.sel-2').value,
+                    rank3: el.querySelector('.sel-3').value
+                };
+            };
+            const att = collect('att'), def = collect('def'), mid = collect('mid'), gkd = collect('gkd');
+
+            // Validation : au moins le 1er de chaque catégorie
+            if (!att.rank1 || !def.rank1 || !mid.rank1 || !gkd.rank1) {
+                errEl.textContent = "Tu dois au moins choisir le 1er de chaque catégorie.";
+                return;
+            }
+
+            // Validation : pas de doublon dans une même catégorie
+            for (const [name, c] of [['attaquant', att], ['défenseur', def], ['milieu', mid], ['gardien', gkd]]) {
+                const ids = [c.rank1, c.rank2, c.rank3].filter(Boolean);
+                if (ids.length !== new Set(ids).size) {
+                    errEl.textContent = `Tu as choisi deux fois le même joueur pour le ${name}.`;
+                    return;
+                }
+            }
+
+            const btn = document.getElementById('btnSubmitVote');
+            btn.disabled = true; btn.textContent = 'ENVOI...';
+
+            try {
+                const voteId = `${activeMatch.id}_${session.profileId}`;
+                await setDoc(doc(db, "votes", voteId), {
+                    match_date: activeMatch.id,
+                    voter_id: session.profileId,
+                    voter_pseudo: session.profile.pseudo || '',
+                    submitted_at: new Date().toISOString(),
+                    // Compatibilité avec admin-match (lecture rapide)
+                    mvp_attaquant: att.rank1,
+                    mvp_defenseur: def.rank1,
+                    mvp_milieu: mid.rank1,
+                    mvp_gardien: gkd.rank1,
+                    // Détail complet du Top 3
+                    top3: { att, def, mid, gkd }
+                });
+                document.getElementById('voteForm').style.display = 'none';
+                document.getElementById('alreadyVotedState').style.display = 'block';
+            } catch (err) {
+                console.error(err);
+                errEl.textContent = "Erreur : " + err.message;
+                btn.disabled = false; btn.textContent = 'VALIDER MON VOTE';
+            }
+        }
+
+        async function init() {
+            const titleEl = document.getElementById('voteTitle');
+
+            activeMatch = await findActiveMatch();
+
+            if (!activeMatch) {
+                titleEl.textContent = "AUCUN VOTE OUVERT";
+                document.getElementById('noVoteState').style.display = 'block';
+                return;
+            }
+
+            titleEl.innerHTML = `MATCH DU <span>${activeMatch.id}</span>`;
+            setupCountdown(activeMatch._closeMs);
+
+            // A-t-il déjà voté ?
+            if (await dejaVote(activeMatch.id, session.profileId)) {
+                document.getElementById('alreadyVotedState').style.display = 'block';
+                return;
+            }
+
+            await chargerJoueurs();
+            remplirSelects();
+            document.getElementById('voteForm').style.display = 'block';
+            document.getElementById('voteForm').addEventListener('submit', submitVote);
+        }
+
+        init();
+    </script>
+</body>
+</html>

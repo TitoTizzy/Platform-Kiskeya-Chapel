@@ -1,0 +1,150 @@
+/* --- VARIABLES & BASE --- */
+:root {
+    --anthracite: #0a0a0a;
+    --vert-gazon: #2ecc71;
+    --jaune-or: #f1c40f;
+    --glass-bg: rgba(15, 15, 15, 0.85); 
+    --text-silver: #d1d1d1;
+    --border-silver: rgba(255, 255, 255, 0.1);
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    font-family: 'Montserrat', sans-serif;
+    background-color: var(--anthracite);
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* --- GESTION DU FOND (Z-INDEX POSITIF POUR FORCER) --- */
+.bg-watermark-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1; /* On passe en positif */
+}
+
+.bg-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* On booste la visibilité pour être sûr de la voir */
+    filter: grayscale(100%) brightness(1); 
+    opacity: 0.3; 
+}
+
+.bg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* On assombrit via un dégradé */
+    background: radial-gradient(circle, transparent 0%, var(--anthracite) 90%);
+}
+
+/* --- DÉCORATIONS (Z-INDEX 2) --- */
+.circle-decor {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    z-index: 2; /* Devant l'image, derrière le formulaire */
+}
+
+.circle-1 {
+    width: 400px; height: 400px;
+    background: var(--vert-gazon);
+    top: -150px; left: -150px;
+    opacity: 0.2; /* Augmenté */
+}
+
+.circle-2 {
+    width: 300px; height: 300px;
+    background: var(--jaune-or);
+    bottom: -100px; right: -100px;
+    opacity: 0.15; /* Augmenté */
+}
+
+/* --- CONTAINER (Z-INDEX 10) --- */
+.login-container {
+    position: relative; /* Indispensable pour le z-index */
+    z-index: 10;
+    width: 90%;
+    max-width: 420px;
+    padding: 50px 40px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 30px;
+    border: 1px solid var(--border-silver);
+    box-shadow: 0 40px 100px rgba(0,0,0,0.9);
+    text-align: center;
+}
+
+/* --- LE RESTE DU CSS (LOGO, INPUTS, BOUTON) --- */
+.logo-area { margin-bottom: 40px; }
+.logo-area h1 {
+    font-weight: 900; font-size: 2.2rem; text-transform: uppercase; letter-spacing: 3px; margin: 0;
+    background: linear-gradient(to bottom, #ffffff 0%, #a0a0a0 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.logo-area h1 span { color: var(--vert-gazon); -webkit-text-fill-color: var(--vert-gazon); }
+.exclusive-tag {
+    font-size: 0.7rem; color: var(--jaune-or); border: 1px solid var(--jaune-or);
+    padding: 5px 15px; border-radius: 50px; display: inline-block; margin-bottom: 15px; font-weight: 700;
+}
+.input-group { text-align: left; margin-bottom: 20px; }
+.input-group label { font-size: 0.7rem; font-weight: 700; margin-bottom: 10px; display: block; color: var(--text-silver); }
+.input-group input {
+    width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: white; box-sizing: border-box;
+}
+.btn-login {
+    width: 100%; padding: 18px; border: none; border-radius: 12px;
+    background: linear-gradient(145deg, var(--jaune-or), #d4ac0d);
+    color: #000; font-weight: 900; text-transform: uppercase; cursor: pointer;
+    font-family: 'Montserrat', sans-serif; letter-spacing: 1px;
+    transition: 0.3s;
+}
+.btn-login:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(241, 196, 15, 0.3); }
+.btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.login-error {
+    background: rgba(231, 76, 60, 0.15);
+    border: 1px solid rgba(231, 76, 60, 0.5);
+    color: #ff8a7a;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.signup-success {
+    background: rgba(46, 204, 113, 0.12);
+    border: 1px solid rgba(46, 204, 113, 0.45);
+    color: #b9f0d0;
+    padding: 18px 20px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    text-align: center;
+    margin-bottom: 15px;
+}
+.signup-success strong { color: var(--vert-gazon); font-size: 1.05rem; }
+
+.footer-links { margin-top: 25px; }
+.footer-links a {
+    color: var(--text-silver); font-size: 0.85rem; text-decoration: none;
+    border-bottom: 1px dashed rgba(255,255,255,0.2);
+}
+.footer-links a:hover { color: var(--jaune-or); border-color: var(--jaune-or); }
+.admin-note { font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 15px; }

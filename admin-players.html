@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Joueurs | Passion Football</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/admin-players.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+</head>
+<body>
+
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="players-main">
+        <header class="players-header">
+            <div class="title-section">
+                <span class="subtitle">RÔLE SUPERADMIN</span>
+                <h1>GESTION <span>DES JOUEURS</span></h1>
+            </div>
+            <div class="header-actions">
+                <a href="bulk-import.html" class="btn-import">📥 IMPORTER L'EXCEL</a>
+                <button class="btn-new" id="btnNewPlayer">+ NOUVEAU JOUEUR</button>
+            </div>
+        </header>
+
+        <!-- INSCRIPTIONS EN ATTENTE -->
+        <section id="pendingSection" style="display:none;">
+            <h2 class="section-title">
+                <span id="pendingCount">0</span> INSCRIPTION(S) EN <span class="hl">ATTENTE D'APPROBATION</span>
+            </h2>
+            <div class="pending-grid" id="pendingGrid"></div>
+        </section>
+
+        <!-- Liste des joueurs -->
+        <h2 class="section-title">JOUEURS <span class="hl">ENREGISTRÉS</span></h2>
+        <div class="players-grid" id="playersGrid"></div>
+    </main>
+
+    <!-- MODAL : APPROUVER UNE INSCRIPTION (avec matching auto) -->
+    <div id="approveModal" class="modal-edit" style="display:none;">
+        <div class="modal-edit-content">
+            <span class="modal-close" id="closeApproveModal">&times;</span>
+            <h2>NOUVELLE <span>INSCRIPTION</span></h2>
+
+            <div class="approve-info">
+                <div class="approve-row"><strong>Pseudo demandé :</strong> <span id="appPseudo"></span></div>
+                <div class="approve-row"><strong>Nom complet :</strong> <span id="appNom"></span></div>
+                <div class="approve-row"><strong>Email :</strong> <span id="appEmail"></span></div>
+            </div>
+
+            <!-- ZONE DE MATCHING AUTOMATIQUE -->
+            <div id="matchBox" class="match-box">
+                <!-- Rempli dynamiquement par le JS -->
+            </div>
+
+            <!-- MODE MANUEL (caché par défaut) -->
+            <div id="manualBox" class="manual-box" style="display:none;">
+                <h3>CHOISIR MANUELLEMENT</h3>
+                <select id="appLinkSelect" class="approve-select"></select>
+                <button type="button" class="btn-confirm-manual" id="btnConfirmManual">FUSIONNER AVEC CE JOUEUR</button>
+            </div>
+
+            <!-- RÔLE (toujours visible) -->
+            <div class="role-block">
+                <label>Rôle attribué</label>
+                <select id="appRole" class="approve-select">
+                    <option value="joueur" selected>Joueur</option>
+                    <option value="tresorier">Trésorier</option>
+                    <option value="admin">Admin</option>
+                    <option value="superadmin">Superadmin</option>
+                </select>
+            </div>
+
+            <div class="modal-error" id="approveError"></div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" id="btnReject">REJETER L'INSCRIPTION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL : NOUVEAU / EDIT JOUEUR -->
+    <div id="playerModal" class="modal-edit" style="display:none;">
+        <div class="modal-edit-content">
+            <span class="modal-close" id="closePlayerModal">&times;</span>
+            <h2 id="modalTitle">NOUVEAU <span>JOUEUR</span></h2>
+
+            <form id="playerForm" class="player-form">
+                <div class="photo-upload">
+                    <div class="photo-preview" id="photoPreview">
+                        <span class="photo-placeholder">PHOTO</span>
+                    </div>
+                    <input type="file" id="photoFile" accept="image/*" style="display:none;">
+                    <button type="button" class="btn-upload" id="btnSelectPhoto">CHOISIR UNE PHOTO</button>
+                </div>
+
+                <div class="form-grid">
+                    <label>
+                        <span>Nom complet *</span>
+                        <input type="text" id="fld-nom" required>
+                    </label>
+                    <label>
+                        <span>Pseudo *</span>
+                        <input type="text" id="fld-pseudo" required maxlength="24">
+                    </label>
+                    <label>
+                        <span>Email *</span>
+                        <input type="email" id="fld-email" required>
+                    </label>
+                    <label class="postes-field">
+                        <span>Postes <em>(plusieurs possibles)</em></span>
+                        <div class="postes-checks">
+                            <label class="poste-check"><input type="checkbox" name="postes" value="Gardien"> 🧤 Gardien</label>
+                            <label class="poste-check"><input type="checkbox" name="postes" value="Défenseur"> 🛡️ Défenseur</label>
+                            <label class="poste-check"><input type="checkbox" name="postes" value="Milieu"> ⚙️ Milieu</label>
+                            <label class="poste-check"><input type="checkbox" name="postes" value="Attaquant"> ⚽ Attaquant</label>
+                        </div>
+                    </label>
+                    <label>
+                        <span>Rôle</span>
+                        <select id="fld-role">
+                            <option value="joueur">Joueur</option>
+                            <option value="tresorier">Trésorier</option>
+                            <option value="admin">Admin</option>
+                            <option value="superadmin">Superadmin</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="modal-error" id="playerError"></div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="btnCancel">ANNULER</button>
+                    <button type="submit" class="btn-save-modal">ENREGISTRER</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, storage } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import {
+            collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import {
+            ref, uploadBytes, getDownloadURL
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
+
+        // Garde stricte : admin+ (admin et superadmin)
+        const session = await requireAuth({ minRole: 'admin' });
+        injectSidebar(session);
+
+        // Helper rôle : admin a des restrictions vs superadmin
+        const isSuperadmin = session.role === 'superadmin';
+
+        let joueurs = [];
+        let pendings = [];
+        let editingId = null;
+        let selectedFile = null;
+        let currentApproval = null;
+
+        async function chargerJoueurs() {
+            joueurs = [];
+            const snap = await getDocs(collection(db, "users"));
+            snap.forEach(d => joueurs.push({ id: d.id, ...d.data() }));
+            joueurs.sort((a, b) => (a.pseudo || '').localeCompare(b.pseudo || ''));
+            renderJoueurs();
+        }
+
+        async function chargerPendings() {
+            pendings = [];
+            try {
+                const snap = await getDocs(collection(db, "pending_signups"));
+                snap.forEach(d => {
+                    const data = d.data();
+                    if (data.status === 'pending') pendings.push({ id: d.id, ...data });
+                });
+            } catch (e) { console.warn(e); }
+            renderPendings();
+        }
+
+        function renderPendings() {
+            const sec = document.getElementById('pendingSection');
+            const grid = document.getElementById('pendingGrid');
+            const count = document.getElementById('pendingCount');
+            if (pendings.length === 0) {
+                sec.style.display = 'none';
+                return;
+            }
+            sec.style.display = 'block';
+            count.textContent = pendings.length;
+            grid.innerHTML = '';
+            pendings.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'pending-card';
+                const date = p.created_at?.toDate ? p.created_at.toDate().toLocaleString('fr-FR') : '';
+                card.innerHTML = `
+                    <div class="pending-info">
+                        <h3>${p.pseudo_demande || '—'}</h3>
+                        <p class="pending-name">${p.nom_complet || ''}</p>
+                        <p class="pending-email">${p.email}</p>
+                        <p class="pending-date">${date}</p>
+                    </div>
+                    <button class="btn-review" data-id="${p.id}">EXAMINER</button>
+                `;
+                grid.appendChild(card);
+            });
+            document.querySelectorAll('.btn-review').forEach(b => {
+                b.addEventListener('click', () => openApproveModal(b.dataset.id));
+            });
+        }
+
+        // ====== MATCHING AUTOMATIQUE INTELLIGENT ======
+        function normalize(s) {
+            return (s || '').trim().toLowerCase()
+                .normalize('NFD').replace(/[̀-ͯ]/g, ''); // retire accents
+        }
+
+        function levenshtein(a, b) {
+            if (a.length === 0) return b.length;
+            if (b.length === 0) return a.length;
+            const m = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(0));
+            for (let i = 0; i <= a.length; i++) m[0][i] = i;
+            for (let j = 0; j <= b.length; j++) m[j][0] = j;
+            for (let j = 1; j <= b.length; j++) {
+                for (let i = 1; i <= a.length; i++) {
+                    const cost = a[i-1] === b[j-1] ? 0 : 1;
+                    m[j][i] = Math.min(m[j][i-1] + 1, m[j-1][i] + 1, m[j-1][i-1] + cost);
+                }
+            }
+            return m[b.length][a.length];
+        }
+
+        function findBestMatch(pseudoDemande, nomDemande, candidats) {
+            const tP = normalize(pseudoDemande);
+            const tN = normalize(nomDemande);
+            if (!tP) return null;
+
+            let best = null;
+            for (const j of candidats) {
+                const cP = normalize(j.pseudo);
+                const cN = normalize(j.nom_complet);
+                if (!cP) continue;
+
+                let score = 0, reason = '';
+
+                // Match exact sur pseudo
+                if (cP === tP) { score = 100; reason = 'pseudo identique'; }
+                // Match exact sur nom complet
+                else if (cN && (cN === tP || cN === tN)) { score = 95; reason = 'nom identique'; }
+                // Pseudo demandé contient le pseudo du candidat (ou vice-versa)
+                else if (cP.length >= 3 && (tP.includes(cP) || cP.includes(tP))) {
+                    score = 75; reason = 'pseudo très similaire';
+                }
+                // Nom complet contient le pseudo du candidat
+                else if (cP.length >= 3 && tN && tN.includes(cP)) {
+                    score = 70; reason = 'pseudo dans le nom';
+                }
+                // Levenshtein (orthographe proche)
+                else {
+                    const dist = levenshtein(tP, cP);
+                    const maxLen = Math.max(tP.length, cP.length);
+                    if (maxLen >= 4) {
+                        const ratio = 1 - (dist / maxLen);
+                        if (ratio >= 0.75) { score = Math.round(ratio * 60); reason = 'orthographe proche'; }
+                    }
+                }
+
+                if (score > 0 && (!best || score > best.score)) {
+                    best = { joueur: j, score, reason };
+                }
+            }
+            return best;
+        }
+
+        function openApproveModal(pendingId) {
+            const p = pendings.find(x => x.id === pendingId);
+            if (!p) return;
+            currentApproval = p;
+
+            document.getElementById('appEmail').textContent = p.email;
+            document.getElementById('appNom').textContent = p.nom_complet || '—';
+            document.getElementById('appPseudo').textContent = p.pseudo_demande || '—';
+            document.getElementById('approveError').textContent = '';
+            // Restriction : un admin ne peut pas attribuer le rôle 'superadmin'
+            const roleSel = document.getElementById('appRole');
+            roleSel.querySelectorAll('option').forEach(o => {
+                o.disabled = (!isSuperadmin && o.value === 'superadmin');
+            });
+            roleSel.value = 'joueur';
+
+            // Joueurs sans Auth (donc fusion possible)
+            const sansAuth = joueurs.filter(j => !j.email && !j.auth_uid);
+            const match = findBestMatch(p.pseudo_demande, p.nom_complet, sansAuth);
+            renderMatchBox(match, sansAuth);
+
+            // Remplir le select manuel
+            const sel = document.getElementById('appLinkSelect');
+            sel.innerHTML = '<option value="">— Choisir un joueur —</option>' +
+                sansAuth
+                    .slice()
+                    .sort((a,b) => (a.pseudo||'').localeCompare(b.pseudo||''))
+                    .map(j => `<option value="${j.id}">${j.pseudo}${j.nom_complet && j.nom_complet !== j.pseudo ? ' — '+j.nom_complet : ''} (${j.total_points || 0} pts)</option>`)
+                    .join('');
+
+            document.getElementById('manualBox').style.display = 'none';
+            document.getElementById('approveModal').style.display = 'flex';
+        }
+
+        function renderMatchBox(match, candidats) {
+            const box = document.getElementById('matchBox');
+            const p = currentApproval;
+            if (match) {
+                const j = match.joueur;
+                let confLevel = 'high', confLabel = 'CONFIANCE ÉLEVÉE';
+                if (match.score < 70) { confLevel = 'low'; confLabel = 'CONFIANCE FAIBLE'; }
+                else if (match.score < 90) { confLevel = 'medium'; confLabel = 'CONFIANCE MOYENNE'; }
+
+                box.innerHTML = `
+                    <div class="match-card match-${confLevel}">
+                        <div class="match-confidence">${confLabel} • ${match.reason}</div>
+                        <div class="match-question">
+                            Le système a trouvé un profil similaire :
+                            <strong>${j.pseudo}</strong>${j.nom_complet && j.nom_complet !== j.pseudo ? ' (' + j.nom_complet + ')' : ''}
+                        </div>
+                        <div class="match-stats">
+                            ${j.total_points || 0} pts • ${j.total_buts || 0} buts • ${j.total_assists || 0} assists
+                        </div>
+                        <div class="match-question-bold">
+                            Est-ce la même personne que <strong>${p.pseudo_demande}</strong> ?
+                        </div>
+                        <div class="match-actions">
+                            <button class="btn-yes" id="btnYesMerge" data-link="${j.id}">✓ OUI, FUSIONNER</button>
+                            <button class="btn-no" id="btnNoCreate">✗ NON, NOUVEAU MEMBRE</button>
+                        </div>
+                        <button class="btn-link-toggle" id="btnLinkToggle">Choisir un autre joueur manuellement →</button>
+                    </div>`;
+            } else {
+                // Aucun match trouvé
+                box.innerHTML = `
+                    <div class="match-card match-none">
+                        <div class="match-confidence">AUCUNE CORRESPONDANCE</div>
+                        <div class="match-question">
+                            Aucun joueur existant ne correspond à <strong>${p.pseudo_demande}</strong>.
+                        </div>
+                        <div class="match-actions">
+                            <button class="btn-yes" id="btnNoCreate">+ AJOUTER COMME NOUVEAU MEMBRE</button>
+                        </div>
+                        ${candidats.length > 0 ? `<button class="btn-link-toggle" id="btnLinkToggle">Lier à un joueur existant manuellement →</button>` : ''}
+                    </div>`;
+            }
+            wireMatchButtons();
+        }
+
+        function wireMatchButtons() {
+            const yes = document.getElementById('btnYesMerge');
+            const no = document.getElementById('btnNoCreate');
+            const toggle = document.getElementById('btnLinkToggle');
+            if (yes) yes.addEventListener('click', () => fusionnerAvec(yes.dataset.link));
+            if (no) no.addEventListener('click', () => creerNouveau());
+            if (toggle) toggle.addEventListener('click', () => {
+                const mb = document.getElementById('manualBox');
+                mb.style.display = mb.style.display === 'none' ? 'block' : 'none';
+            });
+            const manualBtn = document.getElementById('btnConfirmManual');
+            if (manualBtn) manualBtn.onclick = () => {
+                const id = document.getElementById('appLinkSelect').value;
+                if (!id) { document.getElementById('approveError').textContent = "Choisis un joueur d'abord."; return; }
+                fusionnerAvec(id);
+            };
+        }
+
+        function closeApproveModal() {
+            document.getElementById('approveModal').style.display = 'none';
+            currentApproval = null;
+        }
+
+        async function fusionnerAvec(linkId) {
+            const errEl = document.getElementById('approveError');
+            errEl.textContent = '';
+            if (!currentApproval || !linkId) return;
+
+            const role = document.getElementById('appRole').value;
+            const existingPlayer = joueurs.find(j => j.id === linkId);
+            if (!existingPlayer) { errEl.textContent = "Joueur introuvable."; return; }
+
+            try {
+                // FUSION : on AJOUTE les infos du nouveau (email, auth_uid, nom complet)
+                // mais on PRÉSERVE toutes les stats existantes (total_buts, etc.)
+                const mergeData = {
+                    email: currentApproval.email,
+                    auth_uid: currentApproval.auth_uid,
+                    role: role,
+                    status: 'approved',
+                    approved_at: serverTimestamp(),
+                    approved_by: session.profile.pseudo || session.user.email,
+                    merged_with_pending: currentApproval.id,
+                    merged_at: serverTimestamp()
+                };
+                // Si le pseudo existant n'a pas de nom complet propre, on le complète avec celui du formulaire
+                if ((!existingPlayer.nom_complet || existingPlayer.nom_complet === existingPlayer.pseudo) && currentApproval.nom_complet) {
+                    mergeData.nom_complet = currentApproval.nom_complet;
+                }
+
+                await updateDoc(doc(db, "users", linkId), mergeData);
+                await deleteDoc(doc(db, "pending_signups", currentApproval.id));
+
+                alert(`✅ Fusion réussie !\n\n${currentApproval.pseudo_demande} (${currentApproval.email}) est maintenant lié au profil de ${existingPlayer.pseudo} avec ses ${existingPlayer.total_points || 0} points et toutes ses stats.`);
+                closeApproveModal();
+                await chargerPendings();
+                await chargerJoueurs();
+            } catch (e) {
+                console.error(e);
+                errEl.textContent = "Erreur fusion : " + e.message;
+            }
+        }
+
+        async function creerNouveau() {
+            const errEl = document.getElementById('approveError');
+            errEl.textContent = '';
+            if (!currentApproval) return;
+
+            const role = document.getElementById('appRole').value;
+
+            try {
+                // Création d'un nouveau doc avec ID = auth_uid (lookup direct dans auth-guard)
+                await setDoc(doc(db, "users", currentApproval.auth_uid), {
+                    email: currentApproval.email,
+                    auth_uid: currentApproval.auth_uid,
+                    pseudo: currentApproval.pseudo_demande,
+                    nom_complet: currentApproval.nom_complet || currentApproval.pseudo_demande,
+                    role: role,
+                    status: 'approved',
+                    postes: [],
+                    poste: null,
+                    total_points: 0, total_buts: 0, total_assists: 0,
+                    total_victoires: 0, total_nuls: 0, total_defaites: 0,
+                    top3_attaquant: 0, top3_defenseur: 0, top3_milieu: 0, top3_gardien: 0,
+                    eclat: 0, antijeu: 0, jaunes: 0, rouges: 0,
+                    mois_retard: 0,
+                    created_at: serverTimestamp(),
+                    approved_at: serverTimestamp(),
+                    approved_by: session.profile.pseudo || session.user.email
+                });
+                await deleteDoc(doc(db, "pending_signups", currentApproval.id));
+
+                alert(`✅ Nouveau membre ajouté : ${currentApproval.pseudo_demande}`);
+                closeApproveModal();
+                await chargerPendings();
+                await chargerJoueurs();
+            } catch (e) {
+                console.error(e);
+                errEl.textContent = "Erreur création : " + e.message;
+            }
+        }
+
+        async function rejeter() {
+            if (!currentApproval) return;
+            if (!confirm("Rejeter l'inscription de " + currentApproval.email + " ?\nLe compte Auth restera, mais sans accès tant qu'il ne refait pas de demande.")) return;
+
+            try {
+                await updateDoc(doc(db, "pending_signups", currentApproval.id), {
+                    status: 'rejected',
+                    rejected_at: serverTimestamp(),
+                    rejected_by: session.profile.pseudo || session.user.email
+                });
+                await deleteDoc(doc(db, "pending_signups", currentApproval.id));
+                alert("Inscription rejetée.");
+                closeApproveModal();
+                await chargerPendings();
+            } catch (e) {
+                alert("Erreur : " + e.message);
+            }
+        }
+
+        function getPhoto(u) {
+            const data = u.photo_url || u.photo_nom;
+            if (!data) return null;
+            if (data.startsWith('http')) return data;
+            return 'pics/' + data;
+        }
+
+        // Helper : récupère un tableau normalisé des postes (rétrocompat)
+        function getPostes(u) {
+            if (Array.isArray(u.postes) && u.postes.length) return u.postes;
+            if (typeof u.poste === 'string' && u.poste) return [u.poste];
+            return [];
+        }
+
+        function renderJoueurs() {
+            const grid = document.getElementById('playersGrid');
+            grid.innerHTML = '';
+            joueurs.forEach(j => {
+                const photo = getPhoto(j);
+                const initiales = (j.nom_complet || j.pseudo || '?').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+                const roleClass = 'role-' + (j.role || 'joueur');
+                const postes = getPostes(j);
+                const postesTxt = postes.length ? postes.join(' · ') : 'Sans poste';
+                const card = document.createElement('div');
+                card.className = 'player-card';
+                card.innerHTML = `
+                    <div class="player-avatar">
+                        ${photo ? `<img src="${photo}" alt="">` : `<span class="ini">${initiales}</span>`}
+                    </div>
+                    <div class="player-meta">
+                        <h3>${j.pseudo || '—'}</h3>
+                        <p class="player-name">${j.nom_complet || ''}</p>
+                        <span class="role-badge ${roleClass}">${(j.role || 'joueur').toUpperCase()}</span>
+                        <span class="poste-tag">${postesTxt}</span>
+                    </div>
+                    <button class="btn-edit-player" data-id="${j.id}">MODIFIER</button>
+                `;
+                grid.appendChild(card);
+            });
+            document.querySelectorAll('.btn-edit-player').forEach(b => {
+                b.addEventListener('click', () => openModal(b.dataset.id));
+            });
+        }
+
+        function openModal(id = null) {
+            editingId = id;
+            selectedFile = null;
+            document.getElementById('playerError').textContent = '';
+            document.getElementById('photoFile').value = '';
+
+            const title = document.getElementById('modalTitle');
+            const photoPrev = document.getElementById('photoPreview');
+
+            // Reset checkboxes
+            document.querySelectorAll('input[name="postes"]').forEach(c => c.checked = false);
+
+            // Restriction : un admin ne peut pas attribuer le rôle 'superadmin'
+            //              et ne peut pas modifier un joueur déjà superadmin (sauf lui-même? non - on bloque)
+            const roleSel = document.getElementById('fld-role');
+            roleSel.querySelectorAll('option').forEach(o => {
+                o.disabled = (!isSuperadmin && o.value === 'superadmin');
+            });
+
+            if (id) {
+                const j = joueurs.find(x => x.id === id);
+                if (!j) return;
+                if (!isSuperadmin && j.role === 'superadmin') {
+                    alert("Tu ne peux pas modifier un superadmin.");
+                    return;
+                }
+                title.innerHTML = 'MODIFIER <span>' + (j.pseudo || 'JOUEUR') + '</span>';
+                document.getElementById('fld-nom').value = j.nom_complet || '';
+                document.getElementById('fld-pseudo').value = j.pseudo || '';
+                document.getElementById('fld-email').value = j.email || '';
+                document.getElementById('fld-role').value = j.role || 'joueur';
+                // Cocher les postes existants
+                const postes = getPostes(j);
+                document.querySelectorAll('input[name="postes"]').forEach(c => {
+                    c.checked = postes.includes(c.value);
+                });
+                const photo = getPhoto(j);
+                photoPrev.innerHTML = photo ? `<img src="${photo}">` : '<span class="photo-placeholder">PHOTO</span>';
+            } else {
+                title.innerHTML = 'NOUVEAU <span>JOUEUR</span>';
+                document.getElementById('playerForm').reset();
+                photoPrev.innerHTML = '<span class="photo-placeholder">PHOTO</span>';
+            }
+
+            document.getElementById('playerModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('playerModal').style.display = 'none';
+            editingId = null;
+            selectedFile = null;
+        }
+
+        async function uploadPhoto(file, joueurId) {
+            const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+            const path = `players/${joueurId}.${ext}`;
+            const storageRef = ref(storage, path);
+            await uploadBytes(storageRef, file);
+            return await getDownloadURL(storageRef);
+        }
+
+        async function submitForm(e) {
+            e.preventDefault();
+            const errEl = document.getElementById('playerError');
+            errEl.textContent = '';
+
+            // Récupérer les postes cochés
+            const postesCoches = Array.from(document.querySelectorAll('input[name="postes"]:checked'))
+                .map(c => c.value);
+
+            const data = {
+                nom_complet: document.getElementById('fld-nom').value.trim(),
+                pseudo: document.getElementById('fld-pseudo').value.trim(),
+                email: document.getElementById('fld-email').value.trim().toLowerCase(),
+                postes: postesCoches,             // <- nouveau: array
+                poste: postesCoches[0] || null,   // <- rétrocompat: 1er poste comme legacy
+                role: document.getElementById('fld-role').value || 'joueur'
+            };
+
+            if (!data.nom_complet || !data.pseudo || !data.email) {
+                errEl.textContent = "Nom, pseudo et email sont requis.";
+                return;
+            }
+
+            // Garde-fou serveur : un admin ne peut pas créer/promouvoir un superadmin
+            if (!isSuperadmin && data.role === 'superadmin') {
+                errEl.textContent = "Seul le superadmin peut attribuer le rôle 'superadmin'.";
+                return;
+            }
+
+            try {
+                let joueurId = editingId;
+                if (!joueurId) {
+                    // Création : initialise les compteurs à 0
+                    const newDoc = await addDoc(collection(db, "users"), {
+                        ...data,
+                        total_points: 0, total_buts: 0, total_assists: 0,
+                        total_victoires: 0, total_nuls: 0, total_defaites: 0,
+                        top3_attaquant: 0, top3_defenseur: 0, top3_milieu: 0, top3_gardien: 0,
+                        eclat: 0, antijeu: 0, jaunes: 0, rouges: 0,
+                        mois_retard: 0,
+                        created_at: serverTimestamp()
+                    });
+                    joueurId = newDoc.id;
+                } else {
+                    await updateDoc(doc(db, "users", joueurId), data);
+                }
+
+                // Upload photo si sélectionnée
+                if (selectedFile) {
+                    const url = await uploadPhoto(selectedFile, joueurId);
+                    await updateDoc(doc(db, "users", joueurId), { photo_url: url });
+                }
+
+                if (!editingId) {
+                    alert("Joueur créé. ⚠️ N'oublie pas de créer son compte Firebase Auth manuellement avec le même email.");
+                } else {
+                    alert("Joueur mis à jour.");
+                }
+                closeModal();
+                chargerJoueurs();
+            } catch (err) {
+                console.error(err);
+                errEl.textContent = "Erreur : " + err.message;
+            }
+        }
+
+        function setupForm() {
+            document.getElementById('btnNewPlayer').addEventListener('click', () => openModal());
+            document.getElementById('closePlayerModal').addEventListener('click', closeModal);
+            document.getElementById('btnCancel').addEventListener('click', closeModal);
+            document.getElementById('playerForm').addEventListener('submit', submitForm);
+
+            // Photo upload UI
+            document.getElementById('btnSelectPhoto').addEventListener('click', () => {
+                document.getElementById('photoFile').click();
+            });
+            document.getElementById('photoFile').addEventListener('change', (e) => {
+                const f = e.target.files[0];
+                if (!f) return;
+                selectedFile = f;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    document.getElementById('photoPreview').innerHTML = `<img src="${ev.target.result}">`;
+                };
+                reader.readAsDataURL(f);
+            });
+        }
+
+        function setupApprovalModal() {
+            document.getElementById('closeApproveModal').addEventListener('click', closeApproveModal);
+            document.getElementById('btnReject').addEventListener('click', rejeter);
+            // btnYesMerge / btnNoCreate / btnLinkToggle / btnConfirmManual sont câblés dans wireMatchButtons() à chaque ouverture
+        }
+
+        async function init() {
+            setupForm();
+            setupApprovalModal();
+            await chargerPendings();
+            await chargerJoueurs();
+        }
+
+        init();
+    </script>
+</body>
+</html>

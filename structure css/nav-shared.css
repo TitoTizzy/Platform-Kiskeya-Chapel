@@ -1,0 +1,67 @@
+/* ==========================================================
+   nav-shared.css — styles communs à la sidebar dynamique
+   À inclure APRÈS le CSS spécifique à chaque page.
+   ========================================================== */
+
+/* Notification badge sur l'icône de nav */
+.nav-links a {
+    position: relative;
+}
+.nav-notif {
+    position: absolute;
+    top: -4px;
+    right: -8px;
+    min-width: 18px; height: 18px;
+    color: #fff;
+    border-radius: 50px;
+    font-size: 0.65rem;
+    font-weight: 900;
+    line-height: 18px;
+    text-align: center;
+    padding: 0 5px;
+    box-sizing: border-box;
+    pointer-events: none;
+    letter-spacing: 0;
+}
+
+/* Niveau ALERT (rouge) — par défaut, urgent */
+.nav-notif[data-level="alert"] {
+    background: #e74c3c;
+    box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.95), 0 0 12px rgba(231, 76, 60, 0.5);
+    animation: notif-pulse 2s ease-in-out infinite;
+}
+
+/* Niveau WARN (orange/jaune) — attention */
+.nav-notif[data-level="warn"] {
+    background: #f39c12;
+    color: #000;
+    box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.95), 0 0 10px rgba(243, 156, 18, 0.4);
+}
+
+/* Niveau INFO (bleu) — information */
+.nav-notif[data-level="info"] {
+    background: #3498db;
+    box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.95), 0 0 10px rgba(52, 152, 219, 0.4);
+}
+
+@keyframes notif-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+/* État d'icônes admin (visuellement distinguées) */
+.nav-links a[data-nav-id^="admin-"]:hover svg {
+    color: #f1c40f;
+}
+.nav-links a[data-nav-id^="admin-"].active svg {
+    color: #f1c40f !important;
+    filter: drop-shadow(0 0 8px rgba(241, 196, 15, 0.5));
+}
+
+/* Mobile : ajustement du badge */
+@media (max-width: 768px) {
+    .nav-notif {
+        top: -2px;
+        right: -10px;
+    }
+}

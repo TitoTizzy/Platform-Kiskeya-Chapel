@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trésorerie | Passion Football</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/admin-finance.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+</head>
+<body>
+
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="finance-main">
+        <header class="finance-header">
+            <div class="title-section">
+                <span class="subtitle">RÔLE TRÉSORIER</span>
+                <h1>SUIVI <span>TRÉSORERIE</span></h1>
+            </div>
+            <div class="year-picker">
+                <label>ANNÉE</label>
+                <select id="yearPicker"></select>
+            </div>
+        </header>
+
+        <!-- LÉGENDE -->
+        <div class="legend">
+            <span class="leg-item leg-paye">● PAYÉ</span>
+            <span class="leg-item leg-partiel">● PARTIEL</span>
+            <span class="leg-item leg-retard">● EN RETARD</span>
+            <span class="leg-item leg-vide">● VIDE</span>
+            <span class="leg-spacer"></span>
+            <span class="leg-info">Clique sur une case pour cycler entre les statuts. Le <strong>mois_retard</strong> est recalculé automatiquement.</span>
+        </div>
+
+        <!-- TABLEAU FINANCIER -->
+        <div class="finance-scroll">
+            <table class="finance-table">
+                <thead>
+                    <tr id="financeHead"></tr>
+                </thead>
+                <tbody id="financeBody">
+                    <tr><td colspan="15" class="loading">Chargement...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="finance-footer">
+            <button class="btn-recalc" id="btnRecalc">RECALCULER TOUS LES MOIS_RETARD</button>
+            <span class="last-action" id="lastAction"></span>
+        </div>
+    </main>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import { collection, getDocs, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // Garde stricte : trésorier+ uniquement
+        const session = await requireAuth({ minRole: 'tresorier' });
+        injectSidebar(session);
+
+        const MOIS = ['JAN','FÉV','MAR','AVR','MAI','JUIN','JUIL','AOÛT','SEP','OCT','NOV','DÉC'];
+        const STATUS_CYCLE = ['', 'paye', 'partiel', 'retard']; // cycle au clic
+        const STATUS_CLASS = { '': 'cell-vide', 'paye': 'cell-paye', 'partiel': 'cell-partiel', 'retard': 'cell-retard' };
+        const STATUS_LABEL = { '': '—', 'paye': '✓', 'partiel': '½', 'retard': '✗' };
+
+        let joueurs = [];
+        let currentYear = new Date().getFullYear();
+
+        function setupYearPicker() {
+            const sel = document.getElementById('yearPicker');
+            const years = [];
+            for (let y = currentYear - 1; y <= currentYear + 1; y++) years.push(y);
+            sel.innerHTML = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
+            sel.addEventListener('change', () => { currentYear = parseInt(sel.value); render(); });
+        }
+
+        async function chargerJoueurs() {
+            joueurs = [];
+            const snap = await getDocs(collection(db, "users"));
+            snap.forEach(d => joueurs.push({ id: d.id, ...d.data() }));
+            // Tri alphabétique
+            joueurs.sort((a, b) => (a.pseudo || '').localeCompare(b.pseudo || ''));
+        }
+
+        function calcMoisRetard(paiementsYear, year) {
+            const now = new Date();
+            const isCurrentYear = year === now.getFullYear();
+            const lastMonth = isCurrentYear ? (now.getMonth() + 1) : 12;
+            let retard = 0;
+            for (let m = 1; m <= lastMonth; m++) {
+                const key = String(m).padStart(2, '0');
+                const status = paiementsYear?.[key] || '';
+                if (status === 'paye') continue;
+                if (status === 'partiel') retard += 0.5;
+                else retard += 1; // retard ou vide
+            }
+            return Math.floor(retard);
+        }
+
+        function render() {
+            // Headers
+            const head = document.getElementById('financeHead');
+            head.innerHTML = `<th class="sticky-col">JOUEUR</th>` +
+                MOIS.map(m => `<th>${m}</th>`).join('') +
+                `<th>RETARD</th>`;
+
+            // Rows
+            const body = document.getElementById('financeBody');
+            body.innerHTML = '';
+            joueurs.forEach(j => {
+                const yearKey = `paiements_${currentYear}`;
+                const paiementsYear = j[yearKey] || {};
+                const retard = calcMoisRetard(paiementsYear, currentYear);
+
+                const tr = document.createElement('tr');
+                tr.dataset.joueurId = j.id;
+                tr.innerHTML = `
+                    <td class="sticky-col">${j.pseudo || '—'}</td>` +
+                    MOIS.map((_, i) => {
+                        const m = String(i + 1).padStart(2, '0');
+                        const status = paiementsYear[m] || '';
+                        return `<td class="month-cell ${STATUS_CLASS[status]}" data-month="${m}" data-status="${status}">${STATUS_LABEL[status]}</td>`;
+                    }).join('') +
+                    `<td class="retard-cell ${retard >= 3 ? 'retard-danger' : retard > 0 ? 'retard-warn' : 'retard-ok'}">${retard}</td>`;
+                body.appendChild(tr);
+            });
+
+            // Wire clics
+            document.querySelectorAll('.month-cell').forEach(cell => {
+                cell.addEventListener('click', () => onCellClick(cell));
+            });
+        }
+
+        async function onCellClick(cell) {
+            const tr = cell.closest('tr');
+            const joueurId = tr.dataset.joueurId;
+            const month = cell.dataset.month;
+            const current = cell.dataset.status || '';
+            const idx = STATUS_CYCLE.indexOf(current);
+            const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+
+            // Optimistic UI
+            cell.dataset.status = next;
+            cell.className = 'month-cell ' + STATUS_CLASS[next];
+            cell.textContent = STATUS_LABEL[next];
+
+            try {
+                const yearKey = `paiements_${currentYear}`;
+                const updateData = {
+                    [`${yearKey}.${month}`]: next || null
+                };
+                if (next === 'paye') {
+                    updateData['dernier_paiement'] = new Date().toISOString();
+                    updateData['dernier_paiement_at'] = serverTimestamp();
+                }
+                await updateDoc(doc(db, "users", joueurId), updateData);
+
+                // Mettre à jour mois_retard pour ce joueur
+                const j = joueurs.find(x => x.id === joueurId);
+                if (j) {
+                    if (!j[yearKey]) j[yearKey] = {};
+                    if (next) j[yearKey][month] = next; else delete j[yearKey][month];
+                    const retard = calcMoisRetard(j[yearKey], currentYear);
+                    await updateDoc(doc(db, "users", joueurId), { mois_retard: retard });
+
+                    // Maj UI badge retard
+                    const retardCell = tr.querySelector('.retard-cell');
+                    retardCell.textContent = retard;
+                    retardCell.className = 'retard-cell ' + (retard >= 3 ? 'retard-danger' : retard > 0 ? 'retard-warn' : 'retard-ok');
+                }
+
+                showAction(`✓ ${tr.firstChild.textContent.trim()} • ${MOIS[parseInt(month)-1]} → ${next || 'vide'}`);
+            } catch (e) {
+                console.error(e);
+                alert("Erreur enregistrement : " + e.message);
+                render(); // rollback visuel
+            }
+        }
+
+        async function recalcTous() {
+            if (!confirm("Recalculer mois_retard pour tous les joueurs (année " + currentYear + ") ?")) return;
+            const btn = document.getElementById('btnRecalc');
+            btn.disabled = true; btn.textContent = 'Recalcul...';
+            let count = 0;
+            for (const j of joueurs) {
+                const yearKey = `paiements_${currentYear}`;
+                const retard = calcMoisRetard(j[yearKey] || {}, currentYear);
+                if ((j.mois_retard || 0) !== retard) {
+                    await updateDoc(doc(db, "users", j.id), { mois_retard: retard });
+                    j.mois_retard = retard;
+                    count++;
+                }
+            }
+            btn.disabled = false; btn.textContent = 'RECALCULER TOUS LES MOIS_RETARD';
+            showAction(`✓ ${count} joueur(s) mis à jour`);
+            render();
+        }
+
+        function showAction(msg) {
+            const el = document.getElementById('lastAction');
+            el.textContent = msg;
+            el.classList.add('flash');
+            setTimeout(() => el.classList.remove('flash'), 2000);
+        }
+
+        async function init() {
+            setupYearPicker();
+            await chargerJoueurs();
+            render();
+            document.getElementById('btnRecalc').addEventListener('click', recalcTous);
+        }
+
+        init();
+    </script>
+</body>
+</html>

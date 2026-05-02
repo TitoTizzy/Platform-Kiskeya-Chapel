@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passion Football | Inscription</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <div class="circle-decor circle-1"></div>
+    <div class="circle-decor circle-2"></div>
+
+    <main class="login-container">
+        <header class="logo-area">
+            <div class="exclusive-tag">REJOINS LA COMMUNAUTÉ</div>
+            <h1>Passion<span>Football</span></h1>
+        </header>
+
+        <form id="signupForm" class="login-form">
+            <div class="input-group">
+                <label for="pseudo">Pseudo</label>
+                <input type="text" id="pseudo" name="pseudo" placeholder="Ex: HANS_LAURENVIL" required maxlength="32" autocomplete="off">
+                <small style="color:#888; font-size:0.7rem; display:block; margin-top:4px;">Si tu jouais déjà avec un pseudo, utilise le même pour récupérer tes stats.</small>
+            </div>
+
+            <div class="input-group">
+                <label for="nom">Nom complet</label>
+                <input type="text" id="nom" name="nom" placeholder="Prénom Nom" required autocomplete="name">
+            </div>
+
+            <div class="input-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="votre@email.com" required autocomplete="email">
+            </div>
+
+            <div class="input-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" name="password" placeholder="••••••••" required minlength="6" autocomplete="new-password">
+                <small style="color:#888; font-size:0.7rem; display:block; margin-top:4px;">Au moins 6 caractères.</small>
+            </div>
+
+            <div class="login-error" id="signupError" style="display:none;"></div>
+            <div class="signup-success" id="signupSuccess" style="display:none;"></div>
+
+            <button type="submit" class="btn-login" id="btnSignup">DEMANDER MON ACCÈS</button>
+        </form>
+
+        <footer class="footer-links">
+            <a href="index.html">Déjà inscrit ? Connexion →</a>
+            <p class="admin-note">Ta demande sera vérifiée par l'administrateur avant d'avoir accès à la plateforme.</p>
+        </footer>
+    </main>
+
+    <script type="module">
+        import { auth, db } from './js/firebase-config.js';
+        import {
+            createUserWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+        import {
+            doc, setDoc, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        const form = document.getElementById('signupForm');
+        const btn = document.getElementById('btnSignup');
+        const errBox = document.getElementById('signupError');
+        const okBox = document.getElementById('signupSuccess');
+
+        function showError(msg) {
+            okBox.style.display = 'none';
+            errBox.textContent = msg;
+            errBox.style.display = 'block';
+        }
+        function showSuccess(html) {
+            errBox.style.display = 'none';
+            okBox.innerHTML = html;
+            okBox.style.display = 'block';
+        }
+
+        function friendlyError(code) {
+            switch (code) {
+                case 'auth/email-already-in-use': return "Cet email est déjà utilisé. Essaie de te connecter.";
+                case 'auth/invalid-email': return "Format d'email invalide.";
+                case 'auth/weak-password': return "Mot de passe trop faible (au moins 6 caractères).";
+                case 'auth/network-request-failed': return "Pas de connexion réseau.";
+                default: return "Inscription impossible (" + code + ")";
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errBox.style.display = 'none';
+
+            const pseudo = document.getElementById('pseudo').value.trim();
+            const nom = document.getElementById('nom').value.trim();
+            const email = document.getElementById('email').value.trim().toLowerCase();
+            const password = document.getElementById('password').value;
+
+            if (pseudo.length < 2) { showError("Pseudo trop court."); return; }
+
+            btn.disabled = true; btn.textContent = 'ENVOI...';
+
+            try {
+                // 1) Créer le compte Auth
+                const cred = await createUserWithEmailAndPassword(auth, email, password);
+                const uid = cred.user.uid;
+
+                // 2) Créer la demande dans pending_signups (le superadmin verra)
+                await setDoc(doc(db, "pending_signups", uid), {
+                    auth_uid: uid,
+                    email: email,
+                    pseudo_demande: pseudo,
+                    nom_complet: nom,
+                    status: 'pending',
+                    created_at: serverTimestamp()
+                });
+
+                // 3) Déconnecter immédiatement (pas d'accès tant que pas approuvé)
+                await signOut(auth);
+
+                showSuccess(`
+                    ✅ <strong>Demande envoyée !</strong><br><br>
+                    L'administrateur va vérifier ton inscription et associer tes statistiques si tu es un joueur existant.<br><br>
+                    Tu pourras te connecter dès que ton compte sera approuvé.
+                `);
+                form.style.display = 'none';
+            } catch (err) {
+                console.error(err);
+                showError(friendlyError(err.code));
+                btn.disabled = false; btn.textContent = 'DEMANDER MON ACCÈS';
+            }
+        });
+    </script>
+</body>
+</html>

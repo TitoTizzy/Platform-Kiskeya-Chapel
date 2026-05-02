@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passion Football | Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/dashboard.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+</head>
+<body>
+
+    <!-- Fond Filigrane -->
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <!-- Navigation Latérale (injectée par js/nav.js) -->
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="dashboard-content">
+        <!-- Header : Profil & Statut Financier -->
+        <header class="user-header">
+            <div class="user-info">
+                <span class="welcome">BIENVENUE,</span>
+                <h2 class="pseudo" id="userPseudo">...</h2>
+                <button id="btnEditProfile" class="btn-edit-profile" title="Modifier mon profil">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    MODIFIER
+                </button>
+            </div>
+            <div id="statusBadge" class="status-badge paid">
+                <span class="dot"></span> COMPTE À JOUR
+            </div>
+        </header>
+
+        <!-- Grille des Statistiques -->
+        <section class="stats-grid">
+            <div class="stat-card metallic">
+                <h3>POINTS GÉNÉRAUX</h3>
+                <p class="stat-value" id="statPoints">0</p>
+                <span class="stat-label">SAISON 2026</span>
+            </div>
+            <div class="stat-card">
+                <h3>BUTS</h3>
+                <p class="stat-value" id="statButs">0</p>
+                <div class="progress-bar"><div class="progress" id="progButs" style="width: 0%;"></div></div>
+            </div>
+            <div class="stat-card">
+                <h3>PASSES</h3>
+                <p class="stat-value" id="statAssists">0</p>
+                <div class="progress-bar"><div class="progress" id="progAssists" style="width: 0%;"></div></div>
+            </div>
+        </section>
+
+        <!-- Zone d'Action : Votes & Dernier Match -->
+        <section class="action-zone" id="actionZone">
+            <div class="action-card vote-active" id="voteCard" style="display:none;">
+                <div class="card-tag">VOTE OUVERT</div>
+                <h3>Élection des Top 3</h3>
+                <p id="voteCardInfo">Match en cours — clique pour voter.</p>
+                <a href="vote.html" class="btn-action">VOTER MAINTENANT</a>
+            </div>
+
+            <div class="action-card vote-closed" id="voteClosedCard" style="display:none;">
+                <h3>AUCUN VOTE OUVERT</h3>
+                <p>Le superadmin doit annoncer le prochain match.</p>
+            </div>
+
+            <div class="action-card match-result" id="lastMatchCard">
+                <h3>DERNIER MATCH</h3>
+                <div class="result-row" id="lastMatchRow">
+                    <span class="match-empty">— Aucun match enregistré —</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL : MODIFIER MON PROFIL -->
+    <div id="profileEditModal" class="modal-edit" style="display:none;">
+        <div class="modal-edit-content">
+            <span class="modal-close" id="closeProfileModal">&times;</span>
+            <h2>MODIFIER MON <span>PROFIL</span></h2>
+
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="pseudo">Pseudo</button>
+                <button class="modal-tab" data-tab="postes">Postes</button>
+                <button class="modal-tab" data-tab="password">Mot de passe</button>
+            </div>
+
+            <!-- Onglet Pseudo -->
+            <div class="modal-pane active" data-pane="pseudo">
+                <label>Nouveau pseudo</label>
+                <input type="text" id="newPseudo" placeholder="EL_FENOMENO" maxlength="24">
+                <div class="modal-error" id="pseudoError"></div>
+                <button class="btn-save-modal" id="btnSavePseudo">ENREGISTRER LE PSEUDO</button>
+            </div>
+
+            <!-- Onglet Postes (multi) -->
+            <div class="modal-pane" data-pane="postes">
+                <label>Mes postes <em>(choisis-en un ou plusieurs)</em></label>
+                <div class="postes-checks">
+                    <label class="poste-check"><input type="checkbox" name="my-postes" value="Gardien"> 🧤 Gardien</label>
+                    <label class="poste-check"><input type="checkbox" name="my-postes" value="Défenseur"> 🛡️ Défenseur</label>
+                    <label class="poste-check"><input type="checkbox" name="my-postes" value="Milieu"> ⚙️ Milieu</label>
+                    <label class="poste-check"><input type="checkbox" name="my-postes" value="Attaquant"> ⚽ Attaquant</label>
+                </div>
+                <div class="modal-error" id="postesError"></div>
+                <button class="btn-save-modal" id="btnSavePostes">ENREGISTRER MES POSTES</button>
+            </div>
+
+            <!-- Onglet Mot de passe -->
+            <div class="modal-pane" data-pane="password">
+                <label>Mot de passe actuel</label>
+                <input type="password" id="oldPassword" autocomplete="current-password">
+                <label>Nouveau mot de passe</label>
+                <input type="password" id="newPassword" autocomplete="new-password" minlength="6">
+                <label>Confirmer le nouveau mot de passe</label>
+                <input type="password" id="confirmPassword" autocomplete="new-password" minlength="6">
+                <div class="modal-error" id="passwordError"></div>
+                <button class="btn-save-modal" id="btnSavePassword">CHANGER LE MOT DE PASSE</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, auth } from './js/firebase-config.js';
+        import { requireAuth, wireLogout } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import { collection, query, where, orderBy, limit, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import {
+            EmailAuthProvider,
+            reauthenticateWithCredential,
+            updatePassword
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+        let currentSession = null;
+
+        async function init() {
+            currentSession = await requireAuth();
+            injectSidebar(currentSession);
+            renderProfile();
+            wireProfileModal();
+            // Module 4 : afficher l'état du vote actif (si pas en sanction niveau 2)
+            if ((currentSession.profile.mois_retard || 0) < 3) {
+                loadVoteState();
+                loadLastMatch();
+            }
+        }
+
+        async function loadVoteState() {
+            try {
+                const q = query(
+                    collection(db, "matchs"),
+                    where("statut", "==", "vote_ouvert"),
+                    orderBy("annonce_at", "desc"),
+                    limit(1)
+                );
+                const snap = await getDocs(q);
+                if (snap.empty) {
+                    document.getElementById('voteClosedCard').style.display = 'block';
+                    return;
+                }
+                const m = snap.docs[0].data();
+                const closeMs = m.vote_close_at?.toMillis ? m.vote_close_at.toMillis() : 0;
+                if (closeMs <= Date.now()) {
+                    document.getElementById('voteClosedCard').style.display = 'block';
+                    return;
+                }
+                const remaining = closeMs - Date.now();
+                const h = Math.floor(remaining / 3600000);
+                document.getElementById('voteCard').style.display = 'block';
+                document.getElementById('voteCardInfo').textContent =
+                    `Match du ${snap.docs[0].id} — il reste environ ${h}h pour voter.`;
+            } catch (e) {
+                console.warn("État vote indispo:", e.message);
+                document.getElementById('voteClosedCard').style.display = 'block';
+            }
+        }
+
+        async function loadLastMatch() {
+            try {
+                const q = query(
+                    collection(db, "matchs"),
+                    where("statut", "==", "valide"),
+                    orderBy("date", "desc"),
+                    limit(1)
+                );
+                const snap = await getDocs(q);
+                if (snap.empty) return;
+                const m = snap.docs[0];
+                const row = document.getElementById('lastMatchRow');
+                row.innerHTML = `
+                    <span class="match-date">${m.id}</span>
+                    <span class="match-outcome">VALIDÉ</span>
+                    <span class="match-points">${currentSession.profile.total_points || 0} PTS</span>`;
+            } catch (e) { console.warn(e); }
+        }
+
+        function renderProfile() {
+            const { profile } = currentSession;
+            // Pseudo
+            document.getElementById('userPseudo').textContent = profile.pseudo || 'JOUEUR';
+
+            // Statut financier (mois_retard)
+            const retard = profile.mois_retard || 0;
+            const badge = document.getElementById('statusBadge');
+            if (retard === 0) {
+                badge.className = 'status-badge paid';
+                badge.innerHTML = '<span class="dot"></span> COMPTE À JOUR';
+            } else if (retard < 3) {
+                badge.className = 'status-badge warning';
+                badge.innerHTML = '<span class="dot"></span> ' + retard + ' MOIS DE RETARD';
+            } else {
+                badge.className = 'status-badge danger';
+                badge.innerHTML = '<span class="dot"></span> ACCÈS RESTREINT';
+            }
+
+            // SANCTION NIVEAU 2 : si mois_retard >= 3, on masque les stats et l'action zone
+            if (retard >= 3) {
+                document.querySelector('.stats-grid').innerHTML = `
+                    <div class="restricted-banner">
+                        <div class="restricted-icon">🔒</div>
+                        <h3>ACCÈS RESTREINT</h3>
+                        <p>Ton compte cumule <strong>${retard} mois de retard</strong>.</p>
+                        <p>Pour réactiver tes statistiques et participer aux votes, contacte le <strong>Trésorier</strong>.</p>
+                    </div>`;
+                document.querySelector('.action-zone')?.remove();
+                return;
+            }
+
+            // Stats personnelles (affichées seulement si pas de sanction)
+            document.getElementById('statPoints').textContent = profile.total_points || 0;
+            document.getElementById('statButs').textContent = profile.total_buts || 0;
+            document.getElementById('statAssists').textContent = profile.total_assists || 0;
+
+            // Progress bars
+            const buts = profile.total_buts || 0;
+            const assists = profile.total_assists || 0;
+            document.getElementById('progButs').style.width = Math.min(100, buts * 5) + '%';
+            document.getElementById('progAssists').style.width = Math.min(100, assists * 6) + '%';
+        }
+
+        function wireProfileModal() {
+            const modal = document.getElementById('profileEditModal');
+            const openBtn = document.getElementById('btnEditProfile');
+            const closeBtn = document.getElementById('closeProfileModal');
+
+            openBtn.addEventListener('click', () => {
+                document.getElementById('newPseudo').value = currentSession.profile.pseudo || '';
+                // Pré-cocher les postes existants (rétrocompat poste/postes)
+                const p = currentSession.profile;
+                const postesActuels = Array.isArray(p.postes) && p.postes.length
+                    ? p.postes
+                    : (typeof p.poste === 'string' && p.poste ? [p.poste] : []);
+                document.querySelectorAll('input[name="my-postes"]').forEach(c => {
+                    c.checked = postesActuels.includes(c.value);
+                });
+                clearErrors();
+                modal.style.display = 'flex';
+            });
+            closeBtn.addEventListener('click', () => modal.style.display = 'none');
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+            // Tabs
+            document.querySelectorAll('.modal-tab').forEach(t => {
+                t.addEventListener('click', () => {
+                    document.querySelectorAll('.modal-tab').forEach(x => x.classList.remove('active'));
+                    document.querySelectorAll('.modal-pane').forEach(x => x.classList.remove('active'));
+                    t.classList.add('active');
+                    document.querySelector('.modal-pane[data-pane="' + t.dataset.tab + '"]').classList.add('active');
+                });
+            });
+
+            // Save pseudo
+            document.getElementById('btnSavePseudo').addEventListener('click', savePseudo);
+            // Save postes
+            document.getElementById('btnSavePostes').addEventListener('click', savePostes);
+            // Save password
+            document.getElementById('btnSavePassword').addEventListener('click', savePassword);
+        }
+
+        function clearErrors() {
+            document.getElementById('pseudoError').textContent = '';
+            document.getElementById('postesError').textContent = '';
+            document.getElementById('passwordError').textContent = '';
+        }
+
+        async function savePostes() {
+            const errEl = document.getElementById('postesError');
+            errEl.textContent = '';
+            const checked = Array.from(document.querySelectorAll('input[name="my-postes"]:checked'))
+                .map(c => c.value);
+
+            try {
+                await updateDoc(doc(db, "users", currentSession.profileId), {
+                    postes: checked,                  // array (nouveau format)
+                    poste: checked[0] || null         // legacy (1er poste = ancien format)
+                });
+                currentSession.profile.postes = checked;
+                currentSession.profile.poste = checked[0] || null;
+                alert("Postes enregistrés !");
+                document.getElementById('profileEditModal').style.display = 'none';
+            } catch (e) {
+                errEl.textContent = "Erreur : " + e.message;
+            }
+        }
+
+        async function savePseudo() {
+            const newPseudo = document.getElementById('newPseudo').value.trim();
+            const errEl = document.getElementById('pseudoError');
+            errEl.textContent = '';
+            if (!newPseudo) { errEl.textContent = "Le pseudo ne peut pas être vide."; return; }
+            if (newPseudo.length < 3) { errEl.textContent = "Au moins 3 caractères."; return; }
+            try {
+                await updateDoc(doc(db, "users", currentSession.profileId), { pseudo: newPseudo });
+                currentSession.profile.pseudo = newPseudo;
+                document.getElementById('userPseudo').textContent = newPseudo;
+                alert("Pseudo mis à jour !");
+                document.getElementById('profileEditModal').style.display = 'none';
+            } catch (e) {
+                errEl.textContent = "Erreur : " + e.message;
+            }
+        }
+
+        async function savePassword() {
+            const oldPwd = document.getElementById('oldPassword').value;
+            const newPwd = document.getElementById('newPassword').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            const errEl = document.getElementById('passwordError');
+            errEl.textContent = '';
+
+            if (!oldPwd || !newPwd || !confirm) { errEl.textContent = "Tous les champs sont requis."; return; }
+            if (newPwd.length < 6) { errEl.textContent = "Le nouveau mot de passe doit faire au moins 6 caractères."; return; }
+            if (newPwd !== confirm) { errEl.textContent = "Les mots de passe ne correspondent pas."; return; }
+
+            try {
+                const user = auth.currentUser;
+                const cred = EmailAuthProvider.credential(user.email, oldPwd);
+                await reauthenticateWithCredential(user, cred);
+                await updatePassword(user, newPwd);
+                alert("Mot de passe modifié avec succès !");
+                document.getElementById('oldPassword').value = '';
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+                document.getElementById('profileEditModal').style.display = 'none';
+            } catch (e) {
+                if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') {
+                    errEl.textContent = "Mot de passe actuel incorrect.";
+                } else if (e.code === 'auth/weak-password') {
+                    errEl.textContent = "Mot de passe trop faible.";
+                } else {
+                    errEl.textContent = "Erreur : " + e.message;
+                }
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

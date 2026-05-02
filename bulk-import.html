@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import des Joueurs | Passion Football</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --anthracite: #0a0a0a;
+            --vert-gazon: #2ecc71;
+            --jaune-or: #f1c40f;
+            --rouge-card: #e74c3c;
+            --border-silver: rgba(255, 255, 255, 0.1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 40px 20px;
+            background: var(--anthracite);
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            min-height: 100vh;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; font-weight: 900; letter-spacing: 1px; margin: 0 0 8px 0; }
+        h1 span { color: var(--vert-gazon); }
+        .subtitle { font-size: 0.7rem; letter-spacing: 4px; color: var(--jaune-or); font-weight: 700; }
+
+        .stats-banner {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid var(--border-silver);
+            border-radius: 14px;
+            padding: 20px 24px;
+            margin: 25px 0;
+            display: flex; gap: 30px; flex-wrap: wrap;
+        }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-num { font-size: 1.8rem; font-weight: 900; color: var(--jaune-or); }
+        .stat-label { font-size: 0.7rem; color: #888; letter-spacing: 1.5px; text-transform: uppercase; }
+
+        .controls { display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap; }
+        button {
+            background: var(--vert-gazon); color: #000;
+            border: none; padding: 14px 28px;
+            border-radius: 10px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 900; letter-spacing: 1.5px;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 0.9rem;
+        }
+        button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(46,204,113,0.3); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.secondary {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-silver);
+            color: #ccc;
+        }
+        button.secondary:hover { background: var(--jaune-or); color: #000; border-color: var(--jaune-or); }
+
+        .progress-bar {
+            height: 8px; background: rgba(255,255,255,0.05);
+            border-radius: 50px; overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, var(--vert-gazon), var(--jaune-or));
+            width: 0%; transition: 0.3s;
+        }
+
+        .log {
+            background: #050505;
+            border: 1px solid var(--border-silver);
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .log .ok { color: var(--vert-gazon); }
+        .log .skip { color: var(--jaune-or); }
+        .log .err { color: var(--rouge-card); }
+        .log .info { color: #888; }
+
+        .player-table {
+            width: 100%; border-collapse: collapse;
+            background: rgba(20, 20, 20, 0.7);
+            border-radius: 12px; overflow: hidden;
+            margin-top: 20px;
+        }
+        .player-table th, .player-table td {
+            padding: 10px 12px; text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.85rem;
+        }
+        .player-table th {
+            background: rgba(0,0,0,0.4);
+            color: var(--jaune-or);
+            font-size: 0.7rem; letter-spacing: 1px;
+            font-weight: 800; text-transform: uppercase;
+        }
+        .player-table .pseudo { text-align: left; font-weight: 700; }
+        .player-table .num { color: var(--vert-gazon); font-weight: 700; }
+        .player-table .neg { color: var(--rouge-card); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <span class="subtitle">IMPORT EN LOT • SUPERADMIN</span>
+        <h1>IMPORT <span>JOUEURS</span></h1>
+        <p style="color:#aaa; max-width:700px; line-height:1.6;">
+            Cette page importe les 48 joueurs depuis ton fichier Excel <em>Kiskeya Chapel Football Stats</em> dans la collection <code>users</code>.
+            Les pseudos déjà existants sont <strong>ignorés</strong> (pas d'écrasement).
+            Les joueurs sont créés en mode <code>role: joueur</code> sans compte Auth — tu pourras leur ajouter un email plus tard via <a href="admin-players.html" style="color:var(--jaune-or)">admin-players.html</a> et leur envoyer un lien d'invitation.
+        </p>
+
+        <div class="stats-banner">
+            <div class="stat-item"><span class="stat-num" id="stTotal">48</span><span class="stat-label">À importer</span></div>
+            <div class="stat-item"><span class="stat-num" id="stCreated">0</span><span class="stat-label">Créés</span></div>
+            <div class="stat-item"><span class="stat-num" id="stSkipped">0</span><span class="stat-label">Ignorés (existants)</span></div>
+            <div class="stat-item"><span class="stat-num" id="stErrors">0</span><span class="stat-label">Erreurs</span></div>
+        </div>
+
+        <div class="controls">
+            <button id="btnImport">LANCER L'IMPORT</button>
+            <button id="btnReload" class="secondary">ACTUALISER</button>
+            <a href="dashboard.html" style="text-decoration:none; align-self:center; color:#888; font-size:0.8rem; margin-left:auto;">← Retour dashboard</a>
+        </div>
+
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+        <div class="log" id="log"><span class="info">Prêt. Clique sur LANCER L'IMPORT.</span></div>
+
+        <h3 style="margin-top:40px; color:var(--jaune-or); letter-spacing:1px; font-size:0.9rem;">APERÇU DES JOUEURS</h3>
+        <div style="overflow-x:auto;">
+            <table class="player-table">
+                <thead>
+                    <tr>
+                        <th class="pseudo">PSEUDO</th>
+                        <th>BUTS</th>
+                        <th>ASSISTS</th>
+                        <th>JAUNES</th>
+                        <th>ROUGES</th>
+                        <th>ÉCLAT</th>
+                        <th>ANTI-JEU</th>
+                        <th>POINTS</th>
+                    </tr>
+                </thead>
+                <tbody id="playersPreview"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import {
+            collection, query, where, getDocs, doc, setDoc, addDoc, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // Garde stricte : superadmin uniquement (action sensible)
+        const session = await requireAuth({ minRole: 'superadmin' });
+
+        // ========== DONNÉES (depuis Kiskeya Chapel Footbal Stats.xlsx) ==========
+        const JOUEURS = [
+            // pseudo, buts, assists, jaunes, rouges, eclat, antijeu, points
+            ['Myrtho',          11, 6, 1, 0, 0, 0, 71],
+            ['Hans Laurenvil',   9, 9, 1, 0, 0, 0, 70],
+            ['Georgy',           7, 1, 0, 0, 0, 0, 38],
+            ['Jephté',           1,10, 0, 0, 0, 0, 35],
+            ['Bill',             5, 2, 1, 0, 0, 0, 29],
+            ['Sylvestre',        6, 0, 1, 0, 1, 0, 29],
+            ['Martin',           3, 3, 0, 0, 0, 0, 24],
+            ['Dave',             4, 1, 0, 0, 0, 0, 23],
+            ['Charlemagne',      3, 3, 1, 0, 0, 0, 22],
+            ['Eddy',             3, 2, 0, 0, 0, 0, 21],
+            ['Fenley',           4, 1, 1, 0, 0, 0, 21],
+            ['Jean Julien',      3, 2, 1, 0, 0, 0, 19],
+            ['Christian',        3, 1, 0, 0, 0, 0, 18],
+            ['Clery',            2, 1, 0, 0, 0, 0, 13],
+            ['Hercule',          2, 1, 0, 0, 0, 0, 13],
+            ['Chrisley',         3, 0, 1, 0, 0, 0, 13],
+            ['Olivier',          0, 4, 0, 0, 0, 0, 12],
+            ['Prince',           2, 0, 0, 0, 1, 0, 11],
+            ['Jameson',          2, 0, 0, 0, 0, 0, 10],
+            ['Lovensky',         2, 0, 0, 0, 0, 0, 10],
+            ['J Marvens',        2, 0, 0, 0, 0, 0, 10],
+            ['Ancyto',           2, 0, 1, 0, 0, 0,  8],
+            ['Scott',            2, 0, 1, 0, 0, 0,  8],
+            ['Ray',              1, 0, 0, 0, 0, 0,  5],
+            ['Adad',             1, 0, 0, 0, 0, 0,  5],
+            ['Adriano',          1, 0, 0, 0, 0, 0,  5],
+            ['Jonathan P.',      1, 0, 0, 0, 0, 0,  5],
+            ['Leonard',          1, 0, 0, 0, 0, 0,  5],
+            ['Richardson',       0, 0, 0, 0, 5, 0,  5],
+            ['Davidson',         0, 1, 0, 0, 0, 0,  3],
+            ['Kessy',            0, 1, 0, 0, 0, 0,  3],
+            ['Riguers',          0, 1, 0, 0, 0, 0,  3],
+            ['Flerant',          1, 0, 1, 0, 0, 0,  3],
+            ['Jules',            1, 0, 1, 0, 0, 0,  3],
+            ['Alexandre',        0, 0, 0, 0, 0, 0,  0],
+            ['Christopher',      0, 0, 0, 0, 0, 0,  0],
+            ['Faustin',          0, 0, 0, 0, 0, 0,  0],
+            ['Gaetan',           0, 0, 0, 0, 0, 0,  0],
+            ['Junior Debrosse',  0, 0, 0, 0, 0, 0,  0],
+            ['Markenley',        0, 0, 0, 0, 0, 0,  0],
+            ['Son',              0, 0, 0, 0, 0, 0,  0],
+            ['Toto',             0, 0, 0, 0, 0, 0,  0],
+            ['Dona',             0, 0, 1, 0, 0, 0, -2],
+            ['Gabriel',          0, 0, 1, 0, 0, 0, -2],
+            ['Lovevens',         0, 0, 1, 0, 0, 0, -2],
+            ['Montilus',         0, 0, 1, 0, 0, 0, -2],
+            ['Rivder',           0, 0, 1, 0, 0, 0, -2],
+            ['Tolisso',          0, 0, 1, 0, 0, 0, -2],
+        ];
+
+        // ========== APERÇU ==========
+        function renderPreview() {
+            const tbody = document.getElementById('playersPreview');
+            tbody.innerHTML = JOUEURS.map(([p, g, a, y, r, e, aj, pts]) => `
+                <tr>
+                    <td class="pseudo">${p}</td>
+                    <td class="num">${g}</td>
+                    <td class="num">${a}</td>
+                    <td>${y}</td>
+                    <td>${r}</td>
+                    <td>${e}</td>
+                    <td>${aj}</td>
+                    <td class="num ${pts < 0 ? 'neg' : ''}">${pts}</td>
+                </tr>`).join('');
+            document.getElementById('stTotal').textContent = JOUEURS.length;
+        }
+
+        // ========== LOG ==========
+        const logEl = document.getElementById('log');
+        function log(msg, cls = 'info') {
+            const span = document.createElement('span');
+            span.className = cls;
+            span.textContent = msg + '\n';
+            logEl.appendChild(span);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        function clearLog() { logEl.innerHTML = ''; }
+
+        // ========== IMPORT ==========
+        async function lancerImport() {
+            const btn = document.getElementById('btnImport');
+            btn.disabled = true; btn.textContent = 'IMPORT EN COURS...';
+            clearLog();
+
+            // 1. Charger les pseudos existants (pour skip)
+            log('Lecture des joueurs existants...', 'info');
+            const existingSnap = await getDocs(collection(db, "users"));
+            const existingPseudos = new Set();
+            existingSnap.forEach(d => {
+                const p = d.data().pseudo;
+                if (p) existingPseudos.add(p.trim().toLowerCase());
+            });
+            log(`→ ${existingPseudos.size} joueurs existants détectés.`, 'info');
+
+            let created = 0, skipped = 0, errors = 0;
+
+            for (let i = 0; i < JOUEURS.length; i++) {
+                const [pseudo, buts, assists, jaunes, rouges, eclat, antijeu, points] = JOUEURS[i];
+                const key = pseudo.trim().toLowerCase();
+
+                // Update progress
+                const progress = ((i + 1) / JOUEURS.length) * 100;
+                document.getElementById('progressFill').style.width = progress + '%';
+
+                if (existingPseudos.has(key)) {
+                    log(`⊘ ${pseudo}  (existe déjà — ignoré)`, 'skip');
+                    skipped++;
+                    document.getElementById('stSkipped').textContent = skipped;
+                    continue;
+                }
+
+                try {
+                    const docData = {
+                        pseudo: pseudo.trim(),
+                        nom_complet: pseudo.trim(),       // sera complété plus tard
+                        email: null,                       // à remplir via admin-players + Auth
+                        role: 'joueur',
+                        postes: [],                        // à remplir par chaque joueur
+                        poste: null,
+                        // Stats actuelles importées de l'Excel
+                        total_buts: buts,
+                        total_assists: assists,
+                        total_victoires: 0,
+                        total_nuls: 0,
+                        total_defaites: 0,
+                        jaunes: jaunes,
+                        rouges: rouges,
+                        eclat: eclat,
+                        antijeu: antijeu,
+                        total_points: points,
+                        // Compteurs Top 3 (à zéro)
+                        top3_attaquant: 0, top3_defenseur: 0, top3_milieu: 0, top3_gardien: 0,
+                        // Trésorerie
+                        mois_retard: 0,
+                        // Timestamps
+                        created_at: serverTimestamp(),
+                        imported_from: 'Kiskeya Chapel Footbal Stats.xlsx'
+                    };
+                    await addDoc(collection(db, "users"), docData);
+                    log(`✓ ${pseudo}  (buts=${buts}, assists=${assists}, points=${points})`, 'ok');
+                    created++;
+                    document.getElementById('stCreated').textContent = created;
+                } catch (e) {
+                    log(`✗ ${pseudo}  ERREUR: ${e.message}`, 'err');
+                    errors++;
+                    document.getElementById('stErrors').textContent = errors;
+                }
+            }
+
+            log('');
+            log(`========== TERMINÉ ==========`, 'info');
+            log(`✓ Créés : ${created}`, 'ok');
+            log(`⊘ Ignorés : ${skipped}`, 'skip');
+            log(`✗ Erreurs : ${errors}`, 'err');
+
+            btn.textContent = 'IMPORT TERMINÉ';
+        }
+
+        // INIT
+        renderPreview();
+        document.getElementById('btnImport').addEventListener('click', lancerImport);
+        document.getElementById('btnReload').addEventListener('click', () => location.reload());
+    </script>
+</body>
+</html>

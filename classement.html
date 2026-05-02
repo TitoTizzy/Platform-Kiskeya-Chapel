@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passion Football | Classements</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/classement.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+</head>
+<body>
+
+    <!-- FIX : Fond bloqué en arrière-plan -->
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div> 
+    </div>
+
+    <!-- Navigation Latérale (injectée par js/nav.js) -->
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="classement-content">
+        <header class="page-header">
+            <div class="header-text">
+                <span class="subtitle">STATISTIQUES OFFICIELLES</span>
+                <h2 id="rankingTitle">CLASSEMENT <span>GÉNÉRAL</span></h2>
+            </div>
+        </header>
+
+        <!-- Onglets : Toutes les métriques (alignés avec les entêtes admin-match) -->
+        <nav class="ranking-tabs">
+            <button class="tab-btn active" data-metric="total_points" data-label="GÉNÉRAL">GÉNÉRAL</button>
+            <button class="tab-btn" data-metric="total_buts" data-label="BUTEURS">BUTEURS</button>
+            <button class="tab-btn" data-metric="total_assists" data-label="PASSEURS">PASSEURS</button>
+            <button class="tab-btn" data-metric="total_victoires" data-label="VICTOIRES">VICTOIRES</button>
+            <!-- Top par poste (votés par les joueurs) -->
+            <button class="tab-btn tab-vote" data-metric="top3_attaquant" data-label="TOP ATTAQUANT">TOP ATT.</button>
+            <button class="tab-btn tab-vote" data-metric="top3_defenseur" data-label="TOP DÉFENSEUR">TOP DÉF.</button>
+            <button class="tab-btn tab-vote" data-metric="top3_milieu" data-label="TOP MILIEU">TOP MID.</button>
+            <button class="tab-btn tab-vote" data-metric="top3_gardien" data-label="TOP GARDIEN">TOP GKD.</button>
+            <!-- Spécial -->
+            <button class="tab-btn" data-metric="eclat" data-label="ÉCLATS">ÉCLATS</button>
+            <!-- Stats Négatives -->
+            <button class="tab-btn btn-neg" data-metric="antijeu" data-label="ANTI-JEU">ANTI-JEU</button>
+            <button class="tab-btn btn-neg" data-metric="jaunes" data-label="CARTONS JAUNES">JAUNES</button>
+            <button class="tab-btn btn-neg" data-metric="rouges" data-label="CARTONS ROUGES">ROUGES</button>
+        </nav>
+
+        <section class="podium" id="podiumContainer"></section>
+
+        <section class="ranking-table">
+            <div class="table-header">
+                <span>RANG</span>
+                <span>JOUEUR</span>
+                <span id="metricHeader" style="text-align: right; padding-right: 40px;">POINTS</span>
+            </div>
+            <div id="rankingList"></div>
+        </section>
+    </main>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        const session = await requireAuth();
+        injectSidebar(session);
+
+        function getPhotoPath(photoData) {
+            if (!photoData) return 'pics/president_photo.jpg';
+            if (photoData.startsWith('http')) return photoData;
+            return `pics/${photoData}`;
+        }
+
+        async function chargerClassement(metric = "total_points") {
+            try {
+                // On trie toujours par ordre décroissant (le plus grand nombre en haut)
+                const q = query(collection(db, "users"), orderBy(metric, "desc"));
+                const querySnapshot = await getDocs(q);
+
+                const podiumContainer = document.getElementById('podiumContainer');
+                const rankingList = document.getElementById('rankingList');
+                podiumContainer.innerHTML = '';
+                rankingList.innerHTML = '';
+
+                // SANCTION NIVEAU 1 : filtrer les joueurs avec mois_retard >= 1
+                const docs = querySnapshot.docs.filter(d => {
+                    const u = d.data();
+                    const retard = u.mois_retard || 0;
+                    return retard < 1; // seuls les joueurs à jour apparaissent
+                });
+
+                let index = 1;
+                docs.forEach((doc) => {
+                    const user = doc.data();
+                    const photo = getPhotoPath(user.photo_nom);
+                    const val = user[metric] || 0;
+
+                    if (index <= 3) {
+                        podiumContainer.innerHTML += `
+                            <div class="podium-item rank-${index}">
+                                <div class="podium-avatar">
+                                    <img src="${photo}" alt="${user.pseudo}">
+                                    <div class="rank-badge">${index}</div>
+                                </div>
+                                <h3 class="podium-pseudo">${user.pseudo}</h3>
+                                <p class="podium-points">${val} ${metric === 'total_points' ? 'PTS' : ''}</p>
+                            </div>`;
+                    } else {
+                        rankingList.innerHTML += `
+                            <div class="ranking-row">
+                                <span class="rank-number">#${index}</span>
+                                <div class="player-cell">
+                                    <img src="${photo}" class="mini-avatar">
+                                    <span class="player-pseudo">${user.pseudo}</span>
+                                </div>
+                                <span class="points-cell">${val}</span>
+                            </div>`;
+                    }
+                    index++;
+                });
+
+                // Message si liste vide après filtrage
+                if (docs.length === 0) {
+                    rankingList.innerHTML = '<div class="empty-rank">Aucun joueur à afficher pour cette catégorie.</div>';
+                }
+            } catch (error) { console.error(error); }
+        }
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelector('.tab-btn.active').classList.remove('active');
+                btn.classList.add('active');
+                const metric = btn.getAttribute('data-metric');
+                const label = btn.getAttribute('data-label');
+                document.getElementById('rankingTitle').innerHTML = `CLASSEMENT <span>${label}</span>`;
+                document.getElementById('metricHeader').innerText = label;
+                chargerClassement(metric);
+            });
+        });
+
+        chargerClassement();
+    </script>
+</body>
+</html>

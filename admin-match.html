@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saisie Officielle | Passion Football</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/admin-table.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+</head>
+<body>
+
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="admin-main">
+        <header class="admin-header">
+            <div class="title-section">
+                <span class="subtitle">FEUILLE DE SESSION</span>
+                <h1>ENREGISTREMENT <span>DES STATISTIQUES</span></h1>
+            </div>
+            <div class="date-picker-box">
+                <label>DATE DU MATCH</label>
+                <input type="date" id="matchDate">
+            </div>
+        </header>
+
+        <!-- ANNONCE DE MATCH (ouvre le vote 72h) -->
+        <div class="announce-box" id="announceBox">
+            <div class="announce-info">
+                <strong id="announceState">Aucun vote ouvert.</strong>
+                <span id="announceCountdown" class="countdown"></span>
+            </div>
+            <button class="btn-announce" id="btnAnnounce">ANNONCER LE MATCH (OUVRIR LE VOTE 72H)</button>
+        </div>
+
+        <!-- BANDEAU INFO VOTES -->
+        <div class="vote-info-banner">
+            <span class="vote-info-icon">🔒</span>
+            <span class="vote-info-text">
+                Les colonnes <strong>VOTES</strong> sont alimentées par les joueurs eux-mêmes (portail de vote).
+                L'admin peut <strong>consulter</strong> les votes du match sélectionné mais <strong>ne peut pas les modifier</strong>.
+            </span>
+        </div>
+
+        <!-- TABLEAU UNIFIÉ : STATS + VOTES (read-only) -->
+        <div class="table-scroll-area">
+            <div class="table-wrapper">
+                <table class="premium-table">
+                    <thead>
+                        <tr>
+                            <th class="sticky-col">JOUEUR</th>
+                            <th>BUTS</th>
+                            <th>ASSISTS</th>
+                            <th>VICTOIRE</th>
+                            <th>NUL</th>
+                            <th>DÉFAITE</th>
+                            <th>CARTON JAUNE</th>
+                            <th>CARTON ROUGE</th>
+                            <th class="vote-th">VOTE MEILLEUR<br>ATTAQUANT</th>
+                            <th class="vote-th">VOTE MEILLEUR<br>DÉFENSEUR</th>
+                            <th class="vote-th">VOTE MEILLEUR<br>MILIEU</th>
+                            <th class="vote-th">VOTE MEILLEUR<br>GARDIEN</th>
+                            <th>ACTIONS D'ÉCLATS</th>
+                            <th>ANTI-JEU</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="table-footer">
+            <button class="btn-add" onclick="window.ajouterLigne()">+ AJOUTER UN JOUEUR</button>
+            <button class="btn-save" onclick="window.enregistrerMatch()">VALIDER ET METTRE À JOUR LES CLASSEMENTS</button>
+        </div>
+    </main>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import { collection, getDocs, doc, getDoc, setDoc, updateDoc, increment, query, where, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // Garde stricte : seuls admin et superadmin accèdent ici
+        const session = await requireAuth({ minRole: 'admin' });
+        injectSidebar(session);
+
+        let listeMembres = [];
+
+        // ANNONCE DE MATCH (Module 4)
+        const VOTE_DUREE_MS = 72 * 3600 * 1000; // 72 heures
+
+        async function refreshAnnounce() {
+            const date = document.getElementById('matchDate').value;
+            const stateEl = document.getElementById('announceState');
+            const countdownEl = document.getElementById('announceCountdown');
+            const btn = document.getElementById('btnAnnounce');
+            countdownEl.textContent = '';
+
+            if (!date) {
+                stateEl.textContent = "Sélectionne une date pour annoncer un match.";
+                btn.disabled = true; btn.textContent = 'ANNONCER LE MATCH (OUVRIR LE VOTE 72H)';
+                return;
+            }
+
+            try {
+                const ref = doc(db, "matchs", date);
+                const snap = await getDoc(ref);
+                if (!snap.exists()) {
+                    stateEl.textContent = "Aucun vote ouvert pour le " + date + ".";
+                    btn.disabled = false; btn.textContent = 'ANNONCER LE MATCH (OUVRIR LE VOTE 72H)';
+                    return;
+                }
+                const m = snap.data();
+                const now = Date.now();
+                const closeMs = m.vote_close_at?.toMillis ? m.vote_close_at.toMillis() : (m.vote_close_at || 0);
+                if (m.statut === 'vote_ouvert' && closeMs > now) {
+                    const remaining = closeMs - now;
+                    const h = Math.floor(remaining / 3600000);
+                    const min = Math.floor((remaining % 3600000) / 60000);
+                    stateEl.innerHTML = '<span class="vote-open-tag">VOTE OUVERT</span> Match du ' + date;
+                    countdownEl.textContent = `Fermeture dans ${h}h${String(min).padStart(2,'0')}`;
+                    btn.disabled = true; btn.textContent = 'VOTE EN COURS';
+                } else if (m.statut === 'vote_ouvert' && closeMs <= now) {
+                    // Auto-fermeture
+                    await updateDoc(ref, { statut: 'vote_ferme' });
+                    stateEl.textContent = "Vote fermé pour le " + date + ".";
+                    btn.disabled = true; btn.textContent = 'VOTE FERMÉ';
+                } else {
+                    stateEl.textContent = "Vote " + (m.statut || 'inconnu') + " pour le " + date + ".";
+                    btn.disabled = true; btn.textContent = 'VOTE FERMÉ';
+                }
+            } catch (e) {
+                console.warn(e);
+                stateEl.textContent = "Erreur lecture: " + e.message;
+            }
+        }
+
+        async function announceMatch() {
+            const date = document.getElementById('matchDate').value;
+            if (!date) { alert("Choisis d'abord une date."); return; }
+            if (!confirm("Annoncer le match du " + date + " ?\nLes joueurs auront 72h pour voter.")) return;
+
+            const closeAt = Timestamp.fromMillis(Date.now() + VOTE_DUREE_MS);
+            try {
+                await setDoc(doc(db, "matchs", date), {
+                    date: date,
+                    annonce_at: serverTimestamp(),
+                    vote_close_at: closeAt,
+                    statut: 'vote_ouvert'
+                });
+                alert("Match annoncé. Les joueurs peuvent voter jusqu'au " + closeAt.toDate().toLocaleString('fr-FR') + ".");
+                refreshAnnounce();
+            } catch (e) {
+                alert("Erreur : " + e.message);
+            }
+        }
+        let votesParJoueur = {}; // { voterId: { mvp_attaquant, mvp_defenseur, mvp_milieu, mvp_gardien } }
+
+        async function init() {
+            const snap = await getDocs(collection(db, "users"));
+            snap.forEach(doc => listeMembres.push({id: doc.id, ...doc.data()}));
+            ajouterLigne();
+
+            // Charger votes + état d'annonce à chaque changement de date
+            document.getElementById('matchDate').addEventListener('change', () => {
+                chargerVotesPourDate();
+                refreshAnnounce();
+            });
+            document.getElementById('btnAnnounce').addEventListener('click', announceMatch);
+            refreshAnnounce();
+        }
+
+        async function chargerVotesPourDate() {
+            const date = document.getElementById('matchDate').value;
+            votesParJoueur = {};
+            if (!date) return;
+
+            try {
+                const q = query(collection(db, "votes"), where("match_date", "==", date));
+                const snap = await getDocs(q);
+                snap.forEach(d => {
+                    const v = d.data();
+                    votesParJoueur[v.voter_id] = v;
+                });
+            } catch (e) {
+                console.warn("Collection 'votes' indisponible ou vide:", e.message);
+            }
+
+            // Rafraîchir les cellules de vote pour les lignes existantes
+            document.querySelectorAll('#tableBody tr').forEach(refreshVoteCells);
+        }
+
+        function getPseudo(id) {
+            const m = listeMembres.find(x => x.id === id);
+            return m ? m.pseudo : '—';
+        }
+
+        function refreshVoteCells(tr) {
+            const playerId = tr.querySelector('.in-player').value;
+            const v = votesParJoueur[playerId] || {};
+            tr.querySelector('.v-att').textContent = v.mvp_attaquant ? getPseudo(v.mvp_attaquant) : '—';
+            tr.querySelector('.v-def').textContent = v.mvp_defenseur ? getPseudo(v.mvp_defenseur) : '—';
+            tr.querySelector('.v-mid').textContent = v.mvp_milieu ? getPseudo(v.mvp_milieu) : '—';
+            tr.querySelector('.v-gkd').textContent = v.mvp_gardien ? getPseudo(v.mvp_gardien) : '—';
+        }
+
+        window.ajouterLigne = function() {
+            const tbody = document.getElementById('tableBody');
+            const tr = document.createElement('tr');
+            let options = listeMembres.map(m => `<option value="${m.id}">${m.pseudo}</option>`).join('');
+
+            tr.innerHTML = `
+                <td class="sticky-col"><select class="in-player">${options}</select></td>
+                <td><input type="number" class="in-num val-goal" value="0"></td>
+                <td><input type="number" class="in-num val-assist" value="0"></td>
+                <td><input type="number" class="in-num val-win" value="0" max="1"></td>
+                <td><input type="number" class="in-num val-draw" value="0" max="1"></td>
+                <td><input type="number" class="in-num val-loss" value="0" max="1"></td>
+                <td><input type="number" class="in-num val-yc" value="0"></td>
+                <td><input type="number" class="in-num val-rc" value="0"></td>
+                <td><span class="vote-cell v-att">—</span></td>
+                <td><span class="vote-cell v-def">—</span></td>
+                <td><span class="vote-cell v-mid">—</span></td>
+                <td><span class="vote-cell v-gkd">—</span></td>
+                <td><input type="number" class="in-num val-eclat" value="0"></td>
+                <td><input type="number" class="in-num val-antijeu" value="0"></td>
+                <td><button class="btn-del" onclick="this.parentElement.parentElement.remove()">×</button></td>
+            `;
+            tbody.appendChild(tr);
+
+            // Mettre à jour les cellules de vote au changement de joueur
+            tr.querySelector('.in-player').addEventListener('change', () => refreshVoteCells(tr));
+            refreshVoteCells(tr);
+        };
+
+        window.enregistrerMatch = async function() {
+            const date = document.getElementById('matchDate').value;
+            if (!date) { alert("Sélectionne d'abord la DATE DU MATCH."); return; }
+
+            const rows = document.querySelectorAll('#tableBody tr');
+            if (!rows.length) { alert("Ajoute au moins un joueur."); return; }
+            if (!confirm("Enregistrer les stats du match du " + date + " ?")) return;
+
+            try {
+                // 1. Calculer les compteurs de votes (votes reçus par chaque joueur)
+                //    À partir de la collection votes pour cette date
+                const tally = {}; // { playerId: { att: n, def: n, mid: n, gkd: n } }
+                for (const v of Object.values(votesParJoueur)) {
+                    const incTally = (id, key) => {
+                        if (!id) return;
+                        if (!tally[id]) tally[id] = { att: 0, def: 0, mid: 0, gkd: 0 };
+                        tally[id][key]++;
+                    };
+                    incTally(v.mvp_attaquant, 'att');
+                    incTally(v.mvp_defenseur, 'def');
+                    incTally(v.mvp_milieu, 'mid');
+                    incTally(v.mvp_gardien, 'gkd');
+                }
+
+                // 2. Déterminer les Top 3 par catégorie
+                const top3 = (key) => Object.entries(tally)
+                    .sort((a,b) => (b[1][key]||0) - (a[1][key]||0))
+                    .filter(([,v]) => v[key] > 0)
+                    .slice(0, 3)
+                    .map(([id]) => id);
+
+                const topAtt = top3('att'), topDef = top3('def'), topMid = top3('mid'), topGkd = top3('gkd');
+                const POINTS_TOP = [10, 5, 3]; // 1er, 2ème, 3ème
+
+                // 3. Construire la map de bonus par joueur
+                const bonusVotes = {}; // { playerId: pts }
+                const ajoutBonus = (arr) => arr.forEach((id, i) => {
+                    bonusVotes[id] = (bonusVotes[id] || 0) + POINTS_TOP[i];
+                });
+                ajoutBonus(topAtt); ajoutBonus(topDef); ajoutBonus(topMid); ajoutBonus(topGkd);
+
+                // 4. Compteurs Top 3 pour chaque joueur (pour les classements)
+                const topCount = {}; // { playerId: { top3_attaquant, top3_defenseur, top3_milieu, top3_gardien } }
+                const incTop = (id, key) => {
+                    if (!topCount[id]) topCount[id] = { top3_attaquant: 0, top3_defenseur: 0, top3_milieu: 0, top3_gardien: 0 };
+                    topCount[id][key]++;
+                };
+                topAtt.forEach(id => incTop(id, 'top3_attaquant'));
+                topDef.forEach(id => incTop(id, 'top3_defenseur'));
+                topMid.forEach(id => incTop(id, 'top3_milieu'));
+                topGkd.forEach(id => incTop(id, 'top3_gardien'));
+
+                // 5. Mise à jour de chaque joueur saisi dans le tableau
+                for (let row of rows) {
+                    const id = row.querySelector('.in-player').value;
+                    const getV = (cls) => parseInt(row.querySelector(cls).value) || 0;
+
+                    const buts = getV('.val-goal');
+                    const assists = getV('.val-assist');
+                    const wins = getV('.val-win');
+                    const draws = getV('.val-draw');
+                    const losses = getV('.val-loss');
+                    const yc = getV('.val-yc');
+                    const rc = getV('.val-rc');
+                    const eclat = getV('.val-eclat');
+                    const antijeu = getV('.val-antijeu');
+
+                    let pts = (buts*5) + (assists*3) + (wins*5) + (draws*1) + (losses*-2) + (yc*-2) + (rc*-5) + (eclat*10) + (antijeu*-10);
+                    pts += (bonusVotes[id] || 0);
+
+                    const updateData = {
+                        total_buts: increment(buts),
+                        total_assists: increment(assists),
+                        total_victoires: increment(wins),
+                        total_nuls: increment(draws),
+                        total_defaites: increment(losses),
+                        total_points: increment(pts),
+                        jaunes: increment(yc),
+                        rouges: increment(rc),
+                        eclat: increment(eclat),
+                        antijeu: increment(antijeu)
+                    };
+
+                    if (topCount[id]) {
+                        Object.entries(topCount[id]).forEach(([k, v]) => {
+                            if (v > 0) updateData[k] = increment(v);
+                        });
+                        delete topCount[id]; // marqué traité
+                    }
+
+                    await updateDoc(doc(db, "users", id), updateData);
+                }
+
+                // 6. Pour les joueurs Top 3 qui n'étaient pas dans le tableau saisi, on incrémente quand même leurs compteurs
+                for (const [id, counts] of Object.entries(topCount)) {
+                    const updateData = {};
+                    Object.entries(counts).forEach(([k, v]) => {
+                        if (v > 0) updateData[k] = increment(v);
+                    });
+                    if (bonusVotes[id]) updateData.total_points = increment(bonusVotes[id]);
+                    if (Object.keys(updateData).length) {
+                        await updateDoc(doc(db, "users", id), updateData);
+                    }
+                }
+
+                // Marque le match comme validé (utilisé par dashboard "dernier match")
+                try {
+                    await setDoc(doc(db, "matchs", date), {
+                        date: date,
+                        statut: 'valide',
+                        valide_at: serverTimestamp()
+                    }, { merge: true });
+                } catch (e) { console.warn(e); }
+
+                alert("Match du " + date + " enregistré avec succès !");
+                location.reload();
+            } catch (e) {
+                alert("Erreur lors de l'enregistrement.");
+                console.error(e);
+            }
+        };
+
+        init();
+    </script>
+</body>
+</html>

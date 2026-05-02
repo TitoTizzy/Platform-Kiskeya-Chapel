@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passion Football | Communauté</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/communaute.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+</head>
+<body>
+
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div> 
+    </div>
+
+    <!-- Navigation Latérale (injectée par js/nav.js) -->
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="communaute-content">
+        <header class="page-header">
+            <div class="header-text">
+                <span class="subtitle">ANNUAIRE OFFICIEL</span>
+                <h2>MUR DE LA <span>COMMUNAUTÉ</span></h2>
+            </div>
+            <!-- BARRE DE RECHERCHE RÉTABLIE -->
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Rechercher un membre...">
+                <button onclick="window.filtrerMembres()">FILTRER</button>
+            </div>
+        </header>
+
+        <section class="members-grid" id="membersGrid">
+            <!-- Injecté par JS -->
+        </section>
+    </main>
+
+    <!-- MODAL DE PROFIL -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="window.closeProfile()">&times;</span>
+            <div class="profile-detail-card">
+                <div class="profile-info">
+                    <h2 class="profile-name" id="modalFullName">Nom...</h2>
+                    <h3 class="profile-pseudo-label" id="modalPseudo">Pseudo</h3>
+                    <div id="modalBadge" class="poste-badge"></div>
+                </div>
+                <div class="profile-photo">
+                    <div class="photo-circle" id="modalPhotoContainer">
+                        <img id="modalPhoto" src="" alt="Profil">
+                    </div>
+                </div>
+            </div>
+
+            <div class="history-stats-grid">
+                <div class="history-box"><span class="h-label">BUTS</span><span class="h-value gold" id="statButs">0</span></div>
+                <div class="history-box"><span class="h-label">ASSISTS</span><span class="h-value" id="statAssists">0</span></div>
+                <div class="history-box"><span class="h-label">VICTOIRES</span><span class="h-value" id="statVictoires">0</span></div>
+                <div class="history-box top-rank"><span class="h-label">TOP ATTAQUANT</span><span class="h-value" id="statTopAtt">0</span></div>
+                <div class="history-box top-rank"><span class="h-label">TOP DÉFENSEUR</span><span class="h-value" id="statTopDef">0</span></div>
+                <div class="history-box top-rank"><span class="h-label">TOP MILIEU</span><span class="h-value" id="statTopMid">0</span></div>
+                <div class="history-box top-rank"><span class="h-label">TOP GARDIEN</span><span class="h-value" id="statTopGkd">0</span></div>
+                <div class="history-box eclat"><span class="h-label">ÉCLATS</span><span class="h-value" id="statEclat">0</span></div>
+                <div class="history-box antijeu"><span class="h-label">ANTI-JEU</span><span class="h-value" id="statAntijeu">0</span></div>
+                <div class="history-box yellow"><span class="h-label">JAUNES</span><span class="h-value" id="statJaunes">0</span></div>
+                <div class="history-box red"><span class="h-label">ROUGES</span><span class="h-value" id="statRouges">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import { POSTE_CFG } from './js/stats-engine.js';
+        import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        const session = await requireAuth();
+        injectSidebar(session);
+
+        let tousLesJoueurs = [];
+
+        function getPhotoPath(user) {
+            const data = user.photo_url || user.photo_nom;
+            if (!data) return null;
+            if (data.startsWith('http')) return data;
+            return `pics/${data}`;
+        }
+
+        async function chargerMembres() {
+            try {
+                const querySnapshot = await getDocs(collection(db, "users"));
+                tousLesJoueurs = [];
+                querySnapshot.forEach(doc => {
+                    const u = { id: doc.id, ...doc.data() };
+                    // SANCTION NIVEAU 1 : on cache les joueurs avec mois_retard >= 1
+                    if ((u.mois_retard || 0) < 1) {
+                        tousLesJoueurs.push(u);
+                    }
+                });
+                afficherMembres(tousLesJoueurs);
+            } catch (error) { console.error("Erreur Firebase:", error); }
+        }
+
+        // Helper : récupère un tableau normalisé des postes du joueur (rétrocompat avec ancien 'poste' string)
+        function getPostes(user) {
+            if (Array.isArray(user.postes) && user.postes.length) return user.postes;
+            if (typeof user.poste === 'string' && user.poste) return [user.poste];
+            return [];
+        }
+
+        function afficherMembres(liste) {
+            const membersGrid = document.getElementById('membersGrid');
+            membersGrid.innerHTML = '';
+            liste.forEach((user, index) => {
+                const photoSrc = getPhotoPath(user);
+                const postes = getPostes(user);
+                // Couleur principale = couleur du 1er poste (ou gris si aucun)
+                const principal = POSTE_CFG[postes[0]] || { color: "#6b7280", icon: "⚽" };
+                const initiales = user.nom_complet ? user.nom_complet.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : "??";
+
+                // Construire les badges de poste (un par poste)
+                const badgesHtml = postes.length
+                    ? postes.map(p => {
+                        const info = POSTE_CFG[p] || { color: "#6b7280", icon: "⚽" };
+                        return `<span class="poste-pill" style="background:${info.color}22; color:${info.color}; border:1px solid ${info.color}44">${info.icon} ${p}</span>`;
+                      }).join('')
+                    : `<span class="poste-pill" style="background:#6b728022; color:#9ca3af; border:1px solid #6b728044">⚽ Sans poste</span>`;
+
+                membersGrid.innerHTML += `
+                    <div class="member-card" onclick="window.ouvrirProfil('${user.id}')">
+                        <div class="member-rank">#${index + 1}</div>
+                        <div class="member-avatar">
+                            <div class="avatar-circle" style="border-color: ${principal.color}">
+                                ${photoSrc ? `<img src="${photoSrc}" alt="${user.pseudo}">` : `<span style="color:${principal.color}; font-weight:900;">${initiales}</span>`}
+                            </div>
+                        </div>
+                        <h3 class="member-pseudo-display">${user.pseudo}</h3>
+                        <div class="poste-badges">${badgesHtml}</div>
+                        <div class="member-stats">
+                            <div class="m-stat"><span>PTS</span><strong>${user.total_points || 0}</strong></div>
+                            <div class="m-stat"><span>BUTS</span><strong>${user.total_buts || 0}</strong></div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        window.filtrerMembres = function() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const resultats = tousLesJoueurs.filter(j => 
+                j.nom_complet.toLowerCase().includes(query) || 
+                j.pseudo.toLowerCase().includes(query)
+            );
+            afficherMembres(resultats);
+        };
+
+        window.ouvrirProfil = function(id) {
+            const joueur = tousLesJoueurs.find(j => j.id === id);
+            if (joueur) {
+                const noms = (joueur.nom_complet || "Joueur").split(' ');
+                const dernierNom = noms.pop();
+                const prenoms = noms.join(' ');
+                document.getElementById('modalFullName').innerHTML = `${prenoms} <span>${dernierNom}</span>`;
+                document.getElementById('modalPseudo').innerText = joueur.pseudo;
+
+                const photoSrc = getPhotoPath(joueur);
+                const modalPhotoContainer = document.getElementById('modalPhotoContainer');
+                if (photoSrc) {
+                    modalPhotoContainer.innerHTML = `<img id="modalPhoto" src="${photoSrc}" style="width:100%; height:100%; object-fit:cover;">`;
+                } else {
+                    const initiales = joueur.nom_complet.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+                    modalPhotoContainer.innerHTML = `<span style="font-size:3rem; font-weight:900; color:#ccc;">${initiales}</span>`;
+                }
+
+                // Multi-postes dans le modal
+                const postesJoueur = getPostes(joueur);
+                const badge = document.getElementById('modalBadge');
+                badge.style.background = 'transparent';
+                badge.style.color = 'inherit';
+                if (postesJoueur.length === 0) {
+                    badge.innerHTML = `<span class="poste-pill" style="background:#e5e7eb; color:#6b7280; border:1px solid #d1d5db">⚽ Sans poste</span>`;
+                } else {
+                    badge.innerHTML = postesJoueur.map(p => {
+                        const info = POSTE_CFG[p] || { color: "#6b7280", icon: "⚽" };
+                        return `<span class="poste-pill" style="background:${info.color}1A; color:${info.color}; border:1px solid ${info.color}55">${info.icon} ${p}</span>`;
+                    }).join('');
+                }
+
+                document.getElementById('statButs').innerText = joueur.total_buts || 0;
+                document.getElementById('statAssists').innerText = joueur.total_assists || 0;
+                document.getElementById('statVictoires').innerText = joueur.total_victoires || 0;
+                document.getElementById('statTopAtt').innerText = joueur.top3_attaquant || 0;
+                document.getElementById('statTopDef').innerText = joueur.top3_defenseur || 0;
+                document.getElementById('statTopMid').innerText = joueur.top3_milieu || 0;
+                document.getElementById('statTopGkd').innerText = joueur.top3_gardien || 0;
+                document.getElementById('statEclat').innerText = joueur.eclat || 0;
+                document.getElementById('statAntijeu').innerText = joueur.antijeu || 0;
+                document.getElementById('statJaunes').innerText = joueur.jaunes || 0;
+                document.getElementById('statRouges').innerText = joueur.rouges || 0;
+
+                document.getElementById("profileModal").style.display = "flex";
+            }
+        };
+
+        window.closeProfile = function() { document.getElementById("profileModal").style.display = "none"; };
+        chargerMembres();
+    </script>
+</body>
+</html>

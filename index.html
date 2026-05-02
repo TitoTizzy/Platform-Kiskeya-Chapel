@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passion Football | Connexion</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Fond Premium -->
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <div class="circle-decor circle-1"></div>
+    <div class="circle-decor circle-2"></div>
+
+    <main class="login-container">
+        <header class="logo-area">
+            <div class="exclusive-tag">MEMBRES OFFICIELS</div>
+            <h1>Passion<span>Football</span></h1>
+        </header>
+
+        <form id="loginForm" class="login-form">
+            <div class="input-group">
+                <label for="email">Identifiant / Email</label>
+                <input type="email" id="email" name="email" placeholder="votre@email.com" required autocomplete="email">
+            </div>
+
+            <div class="input-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+
+            <div class="login-error" id="loginError" style="display:none;"></div>
+
+            <button type="submit" class="btn-login" id="btnLogin">Accéder au Terrain</button>
+        </form>
+
+        <footer class="footer-links">
+            <a href="#" id="forgotLink">Mot de passe oublié ?</a>
+            <a href="signup.html" style="margin-left: 20px;">Pas encore inscrit ? S'inscrire →</a>
+            <p class="admin-note">Tout nouvel accès doit être approuvé par l'administrateur.</p>
+        </footer>
+    </main>
+
+    <script type="module">
+        import { auth } from './js/firebase-config.js';
+        import {
+            signInWithEmailAndPassword,
+            sendPasswordResetEmail,
+            onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+        const form = document.getElementById('loginForm');
+        const btn = document.getElementById('btnLogin');
+        const errBox = document.getElementById('loginError');
+        const forgotLink = document.getElementById('forgotLink');
+
+        // Si déjà connecté, on saute directement au dashboard
+        onAuthStateChanged(auth, (user) => {
+            if (user) window.location.href = 'dashboard.html';
+        });
+
+        function showError(msg) {
+            errBox.textContent = msg;
+            errBox.style.display = 'block';
+        }
+        function hideError() { errBox.style.display = 'none'; }
+
+        function friendlyError(code) {
+            switch (code) {
+                case 'auth/invalid-credential':
+                case 'auth/wrong-password':
+                case 'auth/user-not-found':
+                    return "Email ou mot de passe incorrect.";
+                case 'auth/invalid-email':
+                    return "Format d'email invalide.";
+                case 'auth/too-many-requests':
+                    return "Trop de tentatives. Réessaie dans quelques minutes.";
+                case 'auth/network-request-failed':
+                    return "Pas de connexion réseau.";
+                default:
+                    return "Connexion impossible (" + code + ")";
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            if (!email || !password) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Connexion...';
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                window.location.href = 'dashboard.html';
+            } catch (err) {
+                console.error(err);
+                showError(friendlyError(err.code));
+                btn.disabled = false;
+                btn.textContent = 'Accéder au Terrain';
+            }
+        });
+
+        forgotLink.addEventListener('click', async (e) => {
+            e.preventDefault();
+            hideError();
+            const email = document.getElementById('email').value.trim();
+            if (!email) {
+                showError("Saisis d'abord ton email pour recevoir le lien de réinitialisation.");
+                return;
+            }
+            try {
+                await sendPasswordResetEmail(auth, email);
+                alert("Un email de réinitialisation a été envoyé à " + email);
+            } catch (err) {
+                showError(friendlyError(err.code));
+            }
+        });
+    </script>
+</body>
+</html>

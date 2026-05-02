@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function userRole() {
+      // Lookup du rôle dans le doc users dont email == auth.token.email
+      // Note: Firestore ne supporte pas de query inline ici, donc on stocke le role
+      // dans un champ 'role' du doc users. Le doc.id doit être l'auth.uid OU email.
+      // Simplification : on lit users/{auth.uid} si présent.
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAdmin() {
+      return isSignedIn() && (userRole() == 'admin' || userRole() == 'superadmin');
+    }
+    function isTresorier() {
+      return isSignedIn() && (userRole() == 'tresorier' || userRole() == 'superadmin');
+    }
+    function isSuperadmin() {
+      return isSignedIn() && userRole() == 'superadmin';
+    }
+
+    // USERS : tout le monde peut lire (annuaire), seuls les admins/superadmin écrivent
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSuperadmin();
+      // Un user peut modifier son propre pseudo, mais pas son rôle ni ses stats
+      allow update: if isSuperadmin()
+                    || (isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+                    || (isSignedIn() && request.auth.uid == userId
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pseudo']));
+      allow delete: if isSuperadmin();
+    }
+
+    // MATCHS : lecture pour tous les loggés, écriture admin/superadmin
+    match /matchs/{matchId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // VOTES : un joueur soumet son vote (création), pas de modification
+    match /votes/{voteId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.voter_id == request.auth.uid;
+      allow update, delete: if false; // Aucune modification possible
+    }
+
+    // PENDING_SIGNUPS : inscriptions en attente
+    // - Création : tout user authentifié (qui vient juste de créer son compte) crée son propre doc
+    // - Lecture : seul l'auteur de la demande, OU le superadmin
+    // - Update/Delete : superadmin uniquement
+    match /pending_signups/{uid} {
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && (request.auth.uid == uid || isSuperadmin());
+      allow update, delete: if isSuperadmin();
+    }
+  }
+}
