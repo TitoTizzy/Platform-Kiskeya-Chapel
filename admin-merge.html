@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Fusion de comptes | Passion Football</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/mobile-base.css">
+    <link rel="stylesheet" href="structure css/admin-players.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+    <style>
+        .merge-main { margin-left: 80px; padding: 40px 50px 100px; width: calc(100% - 80px); box-sizing: border-box; }
+        .merge-header { margin-bottom: 30px; }
+        .merge-header h1 { font-size: 2rem; font-weight: 900; margin: 8px 0 0; }
+        .merge-header h1 span { color: var(--vert-gazon); }
+
+        .merge-step {
+            background: rgba(20,20,20,0.85);
+            border: 1px solid var(--border-silver);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        .merge-step h3 {
+            font-size: 0.8rem; letter-spacing: 1.5px; color: var(--jaune-or);
+            margin: 0 0 12px 0;
+        }
+        .merge-step .step-hint { color: #888; font-size: 0.85rem; line-height: 1.5; margin: 0 0 20px; }
+
+        .candidates-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px; max-height: 420px; overflow-y: auto;
+            padding: 4px;
+        }
+        .candidate {
+            background: #000;
+            border: 2px solid var(--border-silver);
+            border-radius: 12px;
+            padding: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex; flex-direction: column;
+            align-items: center; text-align: center; gap: 8px;
+        }
+        .candidate:hover { border-color: var(--jaune-or); transform: translateY(-2px); }
+        .candidate.selected { border-color: var(--vert-gazon); background: rgba(46,204,113,0.06); }
+        .candidate.master { border-color: var(--jaune-or); background: rgba(241,196,15,0.08); }
+        .candidate .pseudo { font-size: 0.95rem; font-weight: 900; }
+        .candidate .name { font-size: 0.7rem; color: #aaa; }
+        .candidate .stats {
+            display: flex; gap: 6px; font-size: 0.7rem; color: #888;
+            background: rgba(255,255,255,0.04); padding: 4px 10px; border-radius: 50px;
+        }
+        .candidate .stats strong { color: var(--jaune-or); }
+        .candidate .badge {
+            font-size: 0.55rem; letter-spacing: 1px; font-weight: 900;
+            padding: 3px 8px; border-radius: 50px;
+        }
+        .candidate .badge.master { background: var(--jaune-or); color: #000; }
+        .candidate .badge.merged { background: var(--vert-gazon); color: #000; }
+
+        .search-box {
+            display: flex; gap: 10px; margin-bottom: 16px;
+        }
+        .search-box input {
+            flex: 1; background: #000; border: 1px solid var(--border-silver);
+            color: #fff; padding: 12px 14px; border-radius: 8px;
+            font-family: 'Montserrat', sans-serif; font-size: 0.9rem;
+        }
+        .search-box input:focus { outline: none; border-color: var(--jaune-or); }
+
+        .preview-box {
+            background: #050505;
+            border: 1px solid var(--border-silver);
+            border-radius: 12px;
+            padding: 18px;
+        }
+        .preview-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.85rem; border-bottom: 1px dashed rgba(255,255,255,0.05); }
+        .preview-row:last-child { border-bottom: none; }
+        .preview-row strong { color: var(--jaune-or); font-weight: 700; }
+        .preview-row .total { color: var(--vert-gazon); font-weight: 900; }
+
+        .actions-bar {
+            display: flex; gap: 12px; flex-wrap: wrap;
+            margin-top: 24px;
+        }
+        .btn-merge-final {
+            flex: 1; min-width: 200px;
+            padding: 16px; background: var(--vert-gazon); color: #000;
+            border: none; border-radius: 10px; cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 900; letter-spacing: 1.5px; font-size: 0.85rem;
+            transition: 0.3s;
+        }
+        .btn-merge-final:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(46,204,113,0.3); }
+        .btn-merge-final:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-cancel-merge {
+            padding: 16px 24px; background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-silver); color: #ccc;
+            border-radius: 10px; cursor: pointer;
+            font-family: 'Montserrat', sans-serif; font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .btn-cancel-merge:hover { background: var(--rouge-card); border-color: var(--rouge-card); color: #fff; }
+
+        @media (max-width: 768px) {
+            .merge-main { margin-left: 0; padding: 16px 14px 100px; width: 100%; }
+            .candidates-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="merge-main">
+        <header class="merge-header">
+            <span class="subtitle" style="font-size:0.7rem; letter-spacing:4px; color:var(--jaune-or); font-weight:700;">OUTIL SUPERADMIN</span>
+            <h1>FUSION <span>DE COMPTES</span></h1>
+            <p style="color:#aaa; max-width: 700px; line-height:1.6; margin-top:14px;">
+                Fusionne plusieurs comptes en un seul. Les statistiques sont <strong>additionnées</strong>, le compte
+                principal garde son pseudo, son email et sa photo. Les comptes secondaires sont <strong>supprimés</strong>.
+            </p>
+        </header>
+
+        <!-- ÉTAPE 1 : Choisir le compte PRINCIPAL -->
+        <section class="merge-step">
+            <h3>1️⃣ COMPTE PRINCIPAL (celui qu'on garde)</h3>
+            <p class="step-hint">Sélectionne le compte qui sera conservé. Son pseudo, email, photo et auth_uid seront préservés.</p>
+            <div class="search-box">
+                <input type="text" id="searchMaster" placeholder="Rechercher par pseudo ou nom...">
+            </div>
+            <div class="candidates-grid" id="masterGrid"></div>
+        </section>
+
+        <!-- ÉTAPE 2 : Choisir les doublons à fusionner -->
+        <section class="merge-step" id="step2" style="display:none;">
+            <h3>2️⃣ COMPTES À FUSIONNER (qui seront supprimés)</h3>
+            <p class="step-hint">Coche les comptes qui sont la même personne. Leurs stats seront ajoutées au compte principal puis ils seront supprimés.</p>
+            <div class="search-box">
+                <input type="text" id="searchSecondary" placeholder="Rechercher...">
+            </div>
+            <div class="candidates-grid" id="secondaryGrid"></div>
+        </section>
+
+        <!-- ÉTAPE 3 : Aperçu -->
+        <section class="merge-step" id="step3" style="display:none;">
+            <h3>3️⃣ APERÇU DE LA FUSION</h3>
+            <div class="preview-box" id="previewBox"></div>
+
+            <div class="actions-bar">
+                <button class="btn-cancel-merge" id="btnCancel">ANNULER</button>
+                <button class="btn-merge-final" id="btnMergeFinal" disabled>CONFIRMER LA FUSION</button>
+            </div>
+        </section>
+    </main>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import {
+            collection, getDocs, doc, updateDoc, deleteDoc, increment, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        const session = await requireAuth({ minRole: 'superadmin' });
+        injectSidebar(session);
+
+        // Champs additionnables (numériques)
+        const ADDABLE_FIELDS = [
+            'total_points', 'total_buts', 'total_assists',
+            'total_victoires', 'total_nuls', 'total_defaites',
+            'top3_attaquant', 'top3_defenseur', 'top3_milieu', 'top3_gardien',
+            'eclat', 'antijeu', 'jaunes', 'rouges'
+        ];
+
+        let allUsers = [];
+        let master = null;
+        let toMerge = new Set();
+
+        async function chargerUsers() {
+            const snap = await getDocs(collection(db, "users"));
+            allUsers = [];
+            snap.forEach(d => allUsers.push({ id: d.id, ...d.data() }));
+            allUsers.sort((a, b) => (a.pseudo || '').localeCompare(b.pseudo || ''));
+        }
+
+        function getInitiales(u) {
+            const src = u.nom_complet || u.pseudo || '?';
+            return src.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+        }
+        function avatarHtml(u) {
+            const data = u.photo_url || u.photo_nom;
+            const ini = getInitiales(u);
+            if (!data) return `<span class="avatar-fallback" style="width:40px; height:40px;">${ini}</span>`;
+            const src = (typeof data === 'string' && data.startsWith('http')) ? data : `pics/${data}`;
+            return `<img src="${src}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;" onerror="this.outerHTML='<span class=&quot;avatar-fallback&quot; style=&quot;width:40px;height:40px;&quot;>${ini}</span>'">`;
+        }
+
+        function candidateCard(u, type) {
+            const cls = type === 'master' ? (master?.id === u.id ? 'master' : '') : (toMerge.has(u.id) ? 'selected' : '');
+            const badge = type === 'master' && master?.id === u.id ? '<span class="badge master">PRINCIPAL</span>' : '';
+            const badgeMerge = type === 'secondary' && toMerge.has(u.id) ? '<span class="badge merged">À FUSIONNER</span>' : '';
+            return `
+                <div class="candidate ${cls}" data-id="${u.id}" data-type="${type}">
+                    ${avatarHtml(u)}
+                    <div class="pseudo">${u.pseudo || '—'}</div>
+                    ${u.nom_complet && u.nom_complet !== u.pseudo ? `<div class="name">${u.nom_complet}</div>` : ''}
+                    <div class="stats"><strong>${u.total_points || 0}</strong> pts • <strong>${u.total_buts || 0}</strong> buts</div>
+                    ${badge}${badgeMerge}
+                </div>`;
+        }
+
+        function renderMasterGrid(filter = '') {
+            const grid = document.getElementById('masterGrid');
+            const f = filter.trim().toLowerCase();
+            const list = allUsers.filter(u => !f
+                || (u.pseudo || '').toLowerCase().includes(f)
+                || (u.nom_complet || '').toLowerCase().includes(f));
+            grid.innerHTML = list.map(u => candidateCard(u, 'master')).join('') || '<p style="color:#666; padding:20px;">Aucun joueur trouvé.</p>';
+            grid.querySelectorAll('.candidate').forEach(el => {
+                el.addEventListener('click', () => {
+                    master = allUsers.find(u => u.id === el.dataset.id);
+                    toMerge.delete(master.id);
+                    renderMasterGrid(filter);
+                    showStep2();
+                });
+            });
+        }
+
+        function renderSecondaryGrid(filter = '') {
+            const grid = document.getElementById('secondaryGrid');
+            const f = filter.trim().toLowerCase();
+            const list = allUsers.filter(u =>
+                u.id !== master.id &&
+                (!f || (u.pseudo || '').toLowerCase().includes(f) || (u.nom_complet || '').toLowerCase().includes(f))
+            );
+            grid.innerHTML = list.map(u => candidateCard(u, 'secondary')).join('') || '<p style="color:#666; padding:20px;">Aucun joueur trouvé.</p>';
+            grid.querySelectorAll('.candidate').forEach(el => {
+                el.addEventListener('click', () => {
+                    if (toMerge.has(el.dataset.id)) toMerge.delete(el.dataset.id);
+                    else toMerge.add(el.dataset.id);
+                    renderSecondaryGrid(filter);
+                    showStep3();
+                });
+            });
+        }
+
+        function showStep2() {
+            document.getElementById('step2').style.display = 'block';
+            renderSecondaryGrid(document.getElementById('searchSecondary').value || '');
+            showStep3();
+        }
+        function showStep3() {
+            const step3 = document.getElementById('step3');
+            const btn = document.getElementById('btnMergeFinal');
+            if (!master || toMerge.size === 0) {
+                step3.style.display = 'none';
+                btn.disabled = true;
+                return;
+            }
+            step3.style.display = 'block';
+            btn.disabled = false;
+
+            // Construction de l'aperçu
+            const sources = [master, ...allUsers.filter(u => toMerge.has(u.id))];
+            const totals = {};
+            ADDABLE_FIELDS.forEach(f => totals[f] = 0);
+            sources.forEach(s => ADDABLE_FIELDS.forEach(f => { totals[f] += (s[f] || 0); }));
+
+            const labels = {
+                total_points: 'Points', total_buts: 'Buts', total_assists: 'Assists',
+                total_victoires: 'Victoires', total_nuls: 'Nuls', total_defaites: 'Défaites',
+                top3_attaquant: 'Top Attaquant', top3_defenseur: 'Top Défenseur',
+                top3_milieu: 'Top Milieu', top3_gardien: 'Top Gardien',
+                eclat: 'Éclat', antijeu: 'Anti-jeu', jaunes: 'Jaunes', rouges: 'Rouges'
+            };
+
+            let html = `<div class="preview-row" style="font-size:1rem;">
+                <strong>Compte principal :</strong>
+                <span>${master.pseudo} ${master.nom_complet ? '— '+master.nom_complet : ''}</span>
+            </div>`;
+            html += `<div class="preview-row">
+                <strong>Comptes fusionnés :</strong>
+                <span>${[...toMerge].map(id => allUsers.find(u=>u.id===id)?.pseudo || '—').join(', ')}</span>
+            </div><br>`;
+            html += '<h4 style="color:#888; font-size:0.7rem; letter-spacing:2px; margin:10px 0;">STATS APRÈS FUSION</h4>';
+            for (const [k, lbl] of Object.entries(labels)) {
+                const before = master[k] || 0;
+                const after = totals[k];
+                if (before === after) continue;
+                html += `<div class="preview-row">
+                    <span>${lbl}</span>
+                    <span>${before} → <span class="total">${after}</span></span>
+                </div>`;
+            }
+            document.getElementById('previewBox').innerHTML = html;
+        }
+
+        async function fusionner() {
+            if (!master || toMerge.size === 0) return;
+            if (!confirm(`Fusionner ${toMerge.size} compte(s) dans "${master.pseudo}" ?\n\nLes comptes secondaires seront DÉFINITIVEMENT supprimés.`)) return;
+
+            const btn = document.getElementById('btnMergeFinal');
+            btn.disabled = true; btn.textContent = 'FUSION EN COURS...';
+
+            try {
+                // 1. Calculer les sommes à ajouter au master (= somme des secondaires)
+                const totals = {};
+                ADDABLE_FIELDS.forEach(f => totals[f] = 0);
+                allUsers.filter(u => toMerge.has(u.id)).forEach(s => {
+                    ADDABLE_FIELDS.forEach(f => { totals[f] += (s[f] || 0); });
+                });
+
+                // 2. Appliquer les increments au master
+                const inc = {};
+                ADDABLE_FIELDS.forEach(f => { if (totals[f]) inc[f] = increment(totals[f]); });
+
+                // 3. Récupérer les infos qui pourraient enrichir le master
+                let enrichments = {};
+                for (const id of toMerge) {
+                    const sec = allUsers.find(u => u.id === id);
+                    if (!sec) continue;
+                    if (!master.email && sec.email && !enrichments.email) enrichments.email = sec.email;
+                    if (!master.nom_complet && sec.nom_complet) enrichments.nom_complet = sec.nom_complet;
+                    if (!master.photo_url && !master.photo_nom && (sec.photo_url || sec.photo_nom)) {
+                        enrichments.photo_url = sec.photo_url || sec.photo_nom;
+                    }
+                    if ((!master.postes || master.postes.length === 0) && sec.postes && sec.postes.length) {
+                        enrichments.postes = sec.postes;
+                    }
+                }
+
+                inc.merged_at = serverTimestamp();
+                inc.merged_count = increment(toMerge.size);
+                Object.assign(inc, enrichments);
+
+                await updateDoc(doc(db, "users", master.id), inc);
+
+                // 4. Supprimer les secondaires
+                for (const id of toMerge) {
+                    await deleteDoc(doc(db, "users", id));
+                }
+
+                alert(`✅ Fusion réussie !\n${toMerge.size} compte(s) fusionné(s) dans ${master.pseudo}.`);
+                window.location.href = 'admin-players.html';
+            } catch (e) {
+                console.error(e);
+                alert("Erreur fusion : " + e.message);
+                btn.disabled = false; btn.textContent = 'CONFIRMER LA FUSION';
+            }
+        }
+
+        // Listeners
+        document.getElementById('searchMaster').addEventListener('input', e => renderMasterGrid(e.target.value));
+        document.getElementById('searchSecondary').addEventListener('input', e => renderSecondaryGrid(e.target.value));
+        document.getElementById('btnCancel').addEventListener('click', () => {
+            master = null; toMerge.clear();
+            document.getElementById('step2').style.display = 'none';
+            document.getElementById('step3').style.display = 'none';
+            renderMasterGrid('');
+        });
+        document.getElementById('btnMergeFinal').addEventListener('click', fusionner);
+
+        // INIT
+        await chargerUsers();
+        renderMasterGrid('');
+    </script>
+</body>
+</html>

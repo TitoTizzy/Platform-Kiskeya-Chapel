@@ -65,3 +65,25 @@
         right: -10px;
     }
 }
+
+/* Logout visible partout (intégré dans .nav-links pour mobile) */
+.nav-links .logout {
+    color: white;
+    opacity: 0.4;
+    transition: 0.3s;
+    margin-top: auto; /* le pousse en bas en flex column */
+    cursor: pointer;
+}
+.nav-links .logout:hover { opacity: 1; color: #e74c3c; }
+.nav-links .logout svg { color: inherit; }
+
+/* Sur mobile (sidebar horizontale en bas), le logout reste à la fin */
+@media (max-width: 768px) {
+    .nav-links .logout { margin-top: 0; margin-left: auto; }
+}
+
+/* Au cas où une page utilise encore l'ancienne structure */
+.side-nav > .logout {
+    color: white; opacity: 0.4; transition: 0.3s; cursor: pointer;
+}
+.side-nav > .logout:hover { opacity: 1; color: #e74c3c; }

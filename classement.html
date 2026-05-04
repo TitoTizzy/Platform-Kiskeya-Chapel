@@ -2,18 +2,21 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Passion Football | Classements</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/mobile-base.css">
     <link rel="stylesheet" href="structure css/classement.css">
     <link rel="stylesheet" href="structure css/nav-shared.css">
+    <!-- html2canvas pour partage d'image -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
     <!-- FIX : Fond bloqué en arrière-plan -->
     <div class="bg-watermark-container">
         <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
-        <div class="bg-overlay"></div> 
+        <div class="bg-overlay"></div>
     </div>
 
     <!-- Navigation Latérale (injectée par js/nav.js) -->
@@ -25,37 +28,55 @@
                 <span class="subtitle">STATISTIQUES OFFICIELLES</span>
                 <h2 id="rankingTitle">CLASSEMENT <span>GÉNÉRAL</span></h2>
             </div>
+            <button class="btn-share" id="btnShare" title="Partager le classement">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                PARTAGER
+            </button>
         </header>
 
-        <!-- Onglets : Toutes les métriques (alignés avec les entêtes admin-match) -->
+        <!-- Onglets -->
         <nav class="ranking-tabs">
             <button class="tab-btn active" data-metric="total_points" data-label="GÉNÉRAL">GÉNÉRAL</button>
             <button class="tab-btn" data-metric="total_buts" data-label="BUTEURS">BUTEURS</button>
             <button class="tab-btn" data-metric="total_assists" data-label="PASSEURS">PASSEURS</button>
             <button class="tab-btn" data-metric="total_victoires" data-label="VICTOIRES">VICTOIRES</button>
-            <!-- Top par poste (votés par les joueurs) -->
             <button class="tab-btn tab-vote" data-metric="top3_attaquant" data-label="TOP ATTAQUANT">TOP ATT.</button>
             <button class="tab-btn tab-vote" data-metric="top3_defenseur" data-label="TOP DÉFENSEUR">TOP DÉF.</button>
             <button class="tab-btn tab-vote" data-metric="top3_milieu" data-label="TOP MILIEU">TOP MID.</button>
             <button class="tab-btn tab-vote" data-metric="top3_gardien" data-label="TOP GARDIEN">TOP GKD.</button>
-            <!-- Spécial -->
             <button class="tab-btn" data-metric="eclat" data-label="ÉCLATS">ÉCLATS</button>
-            <!-- Stats Négatives -->
             <button class="tab-btn btn-neg" data-metric="antijeu" data-label="ANTI-JEU">ANTI-JEU</button>
             <button class="tab-btn btn-neg" data-metric="jaunes" data-label="CARTONS JAUNES">JAUNES</button>
             <button class="tab-btn btn-neg" data-metric="rouges" data-label="CARTONS ROUGES">ROUGES</button>
         </nav>
 
-        <section class="podium" id="podiumContainer"></section>
+        <!-- Conteneur capturé pour le partage -->
+        <div id="shareableArea">
 
-        <section class="ranking-table">
-            <div class="table-header">
-                <span>RANG</span>
-                <span>JOUEUR</span>
-                <span id="metricHeader" style="text-align: right; padding-right: 40px;">POINTS</span>
-            </div>
-            <div id="rankingList"></div>
-        </section>
+            <!-- Vue PODIUM (toujours en haut sauf général) -->
+            <section class="podium-olympic" id="podiumContainer"></section>
+
+            <!-- Vue CLASSEMENT GÉNÉRAL = tableau Excel triable -->
+            <section id="generalTableSection" class="general-table-section">
+                <div class="table-scroll-x">
+                    <table class="ranking-excel" id="rankingExcel">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Vue CLASSEMENT SPÉCIALISÉ = compact Top 10 -->
+            <section id="compactRankingSection" class="compact-ranking" style="display:none;">
+                <div id="compactRankingList"></div>
+            </section>
+
+        </div>
+
     </main>
 
     <script type="module">
@@ -67,80 +88,264 @@
         const session = await requireAuth();
         injectSidebar(session);
 
-        function getPhotoPath(photoData) {
-            if (!photoData) return 'pics/president_photo.jpg';
-            if (photoData.startsWith('http')) return photoData;
-            return `pics/${photoData}`;
+        // ========== UTILS ==========
+        function getPhotoPath(user) {
+            const data = user.photo_url || user.photo_nom;
+            if (!data) return null;
+            if (typeof data === 'string' && data.startsWith('http')) return data;
+            return `pics/${data}`;
+        }
+        function getInitiales(user) {
+            const src = user.nom_complet || user.pseudo || '?';
+            return src.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+        }
+        function avatarHtml(user, sizeClass = '') {
+            const src = getPhotoPath(user);
+            const ini = getInitiales(user);
+            return src
+                ? `<img src="${src}" class="avatar ${sizeClass}" alt="${user.pseudo}" onerror="this.outerHTML='<span class=&quot;avatar-fallback ${sizeClass}&quot;>${ini}</span>'">`
+                : `<span class="avatar-fallback ${sizeClass}">${ini}</span>`;
         }
 
-        async function chargerClassement(metric = "total_points") {
-            try {
-                // On trie toujours par ordre décroissant (le plus grand nombre en haut)
-                const q = query(collection(db, "users"), orderBy(metric, "desc"));
-                const querySnapshot = await getDocs(q);
+        // Configuration des colonnes pour le tableau Excel (général)
+        const COLUMNS = [
+            { key: 'pseudo',          label: 'JOUEUR',  type: 'text',  default: '—', sticky: true },
+            { key: 'total_points',    label: 'PTS',     type: 'num',   default: 0, gold: true },
+            { key: 'total_buts',      label: 'BUTS',    type: 'num',   default: 0 },
+            { key: 'total_assists',   label: 'ASSISTS', type: 'num',   default: 0 },
+            { key: 'total_victoires', label: 'V',       type: 'num',   default: 0 },
+            { key: 'total_nuls',      label: 'N',       type: 'num',   default: 0 },
+            { key: 'total_defaites',  label: 'D',       type: 'num',   default: 0 },
+            { key: 'top3_attaquant',  label: 'TOP ATT', type: 'num',   default: 0 },
+            { key: 'top3_defenseur',  label: 'TOP DÉF', type: 'num',   default: 0 },
+            { key: 'top3_milieu',     label: 'TOP MID', type: 'num',   default: 0 },
+            { key: 'top3_gardien',    label: 'TOP GKD', type: 'num',   default: 0 },
+            { key: 'eclat',           label: 'ÉCLAT',   type: 'num',   default: 0, color: 'green' },
+            { key: 'antijeu',         label: 'ANTI-JEU', type: 'num',  default: 0, color: 'red' },
+            { key: 'jaunes',          label: 'JAUNES',  type: 'num',   default: 0, color: 'yellow' },
+            { key: 'rouges',          label: 'ROUGES',  type: 'num',   default: 0, color: 'red' }
+        ];
 
-                const podiumContainer = document.getElementById('podiumContainer');
-                const rankingList = document.getElementById('rankingList');
-                podiumContainer.innerHTML = '';
-                rankingList.innerHTML = '';
+        let allUsers = [];
+        let currentSort = { key: 'total_points', dir: 'desc' };
+        let currentMetric = 'total_points';
+        let currentLabel = 'GÉNÉRAL';
 
-                // SANCTION NIVEAU 1 : filtrer les joueurs avec mois_retard >= 1
-                const docs = querySnapshot.docs.filter(d => {
-                    const u = d.data();
-                    const retard = u.mois_retard || 0;
-                    return retard < 1; // seuls les joueurs à jour apparaissent
-                });
+        async function chargerUsers() {
+            const snap = await getDocs(collection(db, "users"));
+            allUsers = [];
+            snap.forEach(d => {
+                const u = { id: d.id, ...d.data() };
+                // SANCTION NIVEAU 1 : on cache les joueurs en retard >= 1 mois
+                if ((u.mois_retard || 0) < 1) allUsers.push(u);
+            });
+        }
 
-                let index = 1;
-                docs.forEach((doc) => {
-                    const user = doc.data();
-                    const photo = getPhotoPath(user.photo_nom);
-                    const val = user[metric] || 0;
+        // ========== VUE GÉNÉRAL (tableau Excel triable) ==========
+        function renderGeneral() {
+            document.getElementById('generalTableSection').style.display = 'block';
+            document.getElementById('compactRankingSection').style.display = 'none';
+            document.getElementById('podiumContainer').style.display = 'flex';
 
-                    if (index <= 3) {
-                        podiumContainer.innerHTML += `
-                            <div class="podium-item rank-${index}">
-                                <div class="podium-avatar">
-                                    <img src="${photo}" alt="${user.pseudo}">
-                                    <div class="rank-badge">${index}</div>
-                                </div>
-                                <h3 class="podium-pseudo">${user.pseudo}</h3>
-                                <p class="podium-points">${val} ${metric === 'total_points' ? 'PTS' : ''}</p>
-                            </div>`;
+            // PODIUM (top 3 sur le critère courant)
+            renderPodium('total_points');
+
+            const table = document.getElementById('rankingExcel');
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+
+            // Header (clickable for sort)
+            thead.innerHTML = '<tr>' + '<th class="rank-col">#</th>' +
+                COLUMNS.map(c => {
+                    const isSorted = currentSort.key === c.key;
+                    const arrow = isSorted ? (currentSort.dir === 'desc' ? '▼' : '▲') : '';
+                    return `<th class="${c.sticky ? 'sticky-col' : ''} sortable" data-sort-key="${c.key}">
+                        ${c.label} <span class="sort-arrow">${arrow}</span>
+                    </th>`;
+                }).join('') + '</tr>';
+
+            thead.querySelectorAll('.sortable').forEach(th => {
+                th.addEventListener('click', () => {
+                    const k = th.dataset.sortKey;
+                    if (currentSort.key === k) {
+                        currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
                     } else {
-                        rankingList.innerHTML += `
-                            <div class="ranking-row">
-                                <span class="rank-number">#${index}</span>
-                                <div class="player-cell">
-                                    <img src="${photo}" class="mini-avatar">
-                                    <span class="player-pseudo">${user.pseudo}</span>
-                                </div>
-                                <span class="points-cell">${val}</span>
-                            </div>`;
+                        currentSort = { key: k, dir: 'desc' };
                     }
-                    index++;
+                    renderGeneral();
                 });
+            });
 
-                // Message si liste vide après filtrage
-                if (docs.length === 0) {
-                    rankingList.innerHTML = '<div class="empty-rank">Aucun joueur à afficher pour cette catégorie.</div>';
-                }
-            } catch (error) { console.error(error); }
+            // Body
+            const sorted = [...allUsers].sort((a, b) => {
+                const av = a[currentSort.key] ?? (currentSort.key === 'pseudo' ? '' : 0);
+                const bv = b[currentSort.key] ?? (currentSort.key === 'pseudo' ? '' : 0);
+                if (typeof av === 'string') return currentSort.dir === 'desc' ? bv.localeCompare(av) : av.localeCompare(bv);
+                return currentSort.dir === 'desc' ? (bv - av) : (av - bv);
+            });
+
+            tbody.innerHTML = sorted.map((u, i) => {
+                const cells = COLUMNS.map(c => {
+                    let val = u[c.key];
+                    if (c.key === 'pseudo') {
+                        return `<td class="sticky-col player-name-cell">
+                            ${avatarHtml(u, 'mini')}
+                            <span>${val || '—'}</span>
+                        </td>`;
+                    }
+                    val = (val == null) ? c.default : val;
+                    let cls = 'num-cell';
+                    if (c.gold) cls += ' gold-cell';
+                    if (c.color) cls += ' color-' + c.color;
+                    if (val < 0) cls += ' negative';
+                    return `<td class="${cls}">${val}</td>`;
+                }).join('');
+                return `<tr><td class="rank-col">${i + 1}</td>${cells}</tr>`;
+            }).join('');
+        }
+
+        // ========== PODIUM JO ==========
+        function renderPodium(metric) {
+            const sorted = [...allUsers]
+                .filter(u => (u[metric] ?? 0) > 0)
+                .sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0));
+            const top3 = sorted.slice(0, 3);
+            const container = document.getElementById('podiumContainer');
+            container.style.display = 'flex';
+            if (top3.length === 0) { container.innerHTML = ''; return; }
+
+            // Ordre visuel JO : 2ème, 1er, 3ème
+            const order = [];
+            if (top3[1]) order.push({ user: top3[1], rank: 2, height: 'h-2' });
+            if (top3[0]) order.push({ user: top3[0], rank: 1, height: 'h-1' });
+            if (top3[2]) order.push({ user: top3[2], rank: 3, height: 'h-3' });
+
+            const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+
+            container.innerHTML = order.map(({ user, rank, height }) => `
+                <div class="podium-place rank-${rank}">
+                    <div class="podium-avatar-wrap">
+                        ${avatarHtml(user, 'podium-avatar')}
+                        <div class="medal">${medals[rank]}</div>
+                    </div>
+                    <div class="podium-pseudo">${user.pseudo || '—'}</div>
+                    <div class="podium-pts">${user[metric] ?? 0}<span>${metric === 'total_points' ? ' PTS' : ''}</span></div>
+                    <div class="podium-block ${height}">
+                        <div class="podium-rank-num">${rank}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ========== CLASSEMENTS SPÉCIALISÉS (Top 10 + podium + liste) ==========
+        function renderCompact(metric, label) {
+            document.getElementById('generalTableSection').style.display = 'none';
+            document.getElementById('compactRankingSection').style.display = 'block';
+
+            const sorted = [...allUsers]
+                .filter(u => (u[metric] ?? 0) !== 0)
+                .sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0))
+                .slice(0, 10); // TOP 10
+
+            renderPodium(metric);
+
+            const list = document.getElementById('compactRankingList');
+            if (sorted.length === 0) {
+                list.innerHTML = '<div class="empty-rank">Aucun joueur dans cette catégorie pour le moment.</div>';
+                return;
+            }
+
+            // ⚠️ La liste contient TOUS les Top 10 (incluant les 3 premiers pour qu'on les retrouve)
+            list.innerHTML = `
+                <div class="compact-header">
+                    <span>RANG</span><span>JOUEUR</span><span class="text-right">${label}</span>
+                </div>
+                ` + sorted.map((u, i) => {
+                    const rank = i + 1;
+                    const medal = rank <= 3 ? ['🥇','🥈','🥉'][rank - 1] : '';
+                    const cls = rank <= 3 ? `top-row top-${rank}` : '';
+                    return `
+                        <div class="compact-row ${cls}">
+                            <span class="rank-cell">${medal}<span class="rank-num">#${rank}</span></span>
+                            <div class="compact-player">
+                                ${avatarHtml(u, 'mini')}
+                                <span>${u.pseudo || '—'}</span>
+                            </div>
+                            <span class="compact-value">${u[metric] ?? 0}</span>
+                        </div>`;
+                }).join('');
+        }
+
+        // ========== ROUTING TABS ==========
+        function selectTab(metric, label) {
+            currentMetric = metric;
+            currentLabel = label;
+            document.getElementById('rankingTitle').innerHTML = `CLASSEMENT <span>${label}</span>`;
+            if (metric === 'total_points') {
+                renderGeneral();
+            } else {
+                renderCompact(metric, label);
+            }
         }
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelector('.tab-btn.active').classList.remove('active');
                 btn.classList.add('active');
-                const metric = btn.getAttribute('data-metric');
-                const label = btn.getAttribute('data-label');
-                document.getElementById('rankingTitle').innerHTML = `CLASSEMENT <span>${label}</span>`;
-                document.getElementById('metricHeader').innerText = label;
-                chargerClassement(metric);
+                selectTab(btn.dataset.metric, btn.dataset.label);
             });
         });
 
-        chargerClassement();
+        // ========== PARTAGE SOCIAL ==========
+        document.getElementById('btnShare').addEventListener('click', async () => {
+            const btn = document.getElementById('btnShare');
+            const original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ GÉNÉRATION...';
+            try {
+                const target = document.getElementById('shareableArea');
+                const canvas = await html2canvas(target, {
+                    backgroundColor: '#0a0a0a',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false
+                });
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+                const fileName = `classement-${currentLabel.toLowerCase().replace(/\s/g,'-')}-${new Date().toISOString().slice(0,10)}.png`;
+                const file = new File([blob], fileName, { type: 'image/png' });
+
+                // Web Share API (mobile)
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Classement ' + currentLabel + ' • Passion Football',
+                        text: 'Classement ' + currentLabel + ' du club Passion Football'
+                    });
+                } else {
+                    // Fallback : téléchargement
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    alert("Image téléchargée. Tu peux maintenant la partager sur WhatsApp / Facebook / Twitter.");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Erreur de génération: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
+        });
+
+        // ========== INIT ==========
+        async function init() {
+            await chargerUsers();
+            selectTab('total_points', 'GÉNÉRAL');
+        }
+        init();
     </script>
 </body>
 </html>

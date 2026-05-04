@@ -2,9 +2,10 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Gestion des Joueurs | Passion Football</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/mobile-base.css">
     <link rel="stylesheet" href="structure css/admin-players.css">
     <link rel="stylesheet" href="structure css/nav-shared.css">
 </head>
@@ -24,7 +25,8 @@
                 <h1>GESTION <span>DES JOUEURS</span></h1>
             </div>
             <div class="header-actions">
-                <a href="bulk-import.html" class="btn-import">📥 IMPORTER L'EXCEL</a>
+                <a href="admin-merge.html" class="btn-import" id="btnMergeAccounts" style="display:none;">🔗 FUSIONNER COMPTES</a>
+                <a href="bulk-import.html" class="btn-import" id="btnBulkImport" style="display:none;">📥 IMPORTER L'EXCEL</a>
                 <button class="btn-new" id="btnNewPlayer">+ NOUVEAU JOUEUR</button>
             </div>
         </header>
@@ -160,6 +162,12 @@
 
         // Helper rôle : admin a des restrictions vs superadmin
         const isSuperadmin = session.role === 'superadmin';
+
+        // Boutons réservés au superadmin
+        if (isSuperadmin) {
+            document.getElementById('btnMergeAccounts').style.display = 'inline-flex';
+            document.getElementById('btnBulkImport').style.display = 'inline-flex';
+        }
 
         let joueurs = [];
         let pendings = [];
