@@ -332,6 +332,26 @@
                     }
 
                     await updateDoc(doc(db, "users", id), updateData);
+
+                    // HISTORIQUE PAR MATCH (utilisé par dashboard "Dernières stats de la semaine")
+                    const playerInfo = listeMembres.find(x => x.id === id);
+                    await setDoc(doc(db, "match_history", `${date}_${id}`), {
+                        match_date: date,
+                        player_id: id,
+                        player_pseudo: playerInfo?.pseudo || '',
+                        buts: buts,
+                        assists: assists,
+                        victoires: wins,
+                        nuls: draws,
+                        defaites: losses,
+                        jaunes: yc,
+                        rouges: rc,
+                        eclat: eclat,
+                        antijeu: antijeu,
+                        bonus_votes: bonusVotes[id] || 0,
+                        points_match: pts,
+                        recorded_at: serverTimestamp()
+                    });
                 }
 
                 // 6. Pour les joueurs Top 3 qui n'étaient pas dans le tableau saisi, on incrémente quand même leurs compteurs

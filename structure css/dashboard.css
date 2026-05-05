@@ -7,14 +7,13 @@
     --border-silver: rgba(255, 255, 255, 0.1);
 }
 
-body, html {
-    margin: 0; padding: 0;
-    width: 100%; height: 100%;
+html, body {
+    margin: 0; padding: 0; width: 100%;
     font-family: 'Montserrat', sans-serif;
     background-color: var(--anthracite);
     color: white;
-    display: flex;
-    overflow-x: hidden;
+    overflow-y: auto; overflow-x: hidden;
+    min-height: 100vh;
 }
 
 /* --- FOND FILIGRANE --- */
@@ -102,9 +101,8 @@ body, html {
 
 /* Bouton Modifier mon profil */
 .user-info { display: flex; flex-direction: column; gap: 4px; }
-.btn-edit-profile {
-    margin-top: 8px;
-    align-self: flex-start;
+.user-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.btn-edit-profile, .btn-logout-dash {
     background: rgba(255,255,255,0.05);
     border: 1px solid var(--border-silver);
     color: #ccc;
@@ -112,7 +110,7 @@ body, html {
     font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 1.5px;
-    padding: 6px 14px;
+    padding: 8px 16px;
     border-radius: 50px;
     cursor: pointer;
     display: inline-flex;
@@ -121,7 +119,8 @@ body, html {
     transition: 0.3s;
 }
 .btn-edit-profile:hover { background: var(--jaune-or); color: #000; border-color: var(--jaune-or); }
-.btn-edit-profile svg { width: 12px; height: 12px; }
+.btn-logout-dash:hover { background: #e74c3c; color: #fff; border-color: #e74c3c; }
+.btn-edit-profile svg, .btn-logout-dash svg { width: 12px; height: 12px; }
 
 /* MODAL — Modifier mon profil */
 .modal-edit {
@@ -303,6 +302,38 @@ body, html {
 .vote-closed p { color: #555; font-size: 0.85rem; }
 .match-empty { color: #555; font-style: italic; font-size: 0.85rem; }
 a.btn-action { display: inline-block; text-decoration: none; }
+
+/* DERNIÈRES STATS DE LA SEMAINE */
+.match-result h3 { font-size: 0.78rem; letter-spacing: 2px; opacity: 0.6; margin: 0 0 14px 0; }
+.match-week-tag {
+    display: inline-block;
+    color: var(--jaune-or);
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    margin-left: 4px;
+    opacity: 0.9;
+}
+.match-stats-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.match-stat-pill {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-silver);
+    color: #ddd;
+    padding: 8px 14px;
+    border-radius: 50px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.match-stat-pill.win { background: rgba(46,204,113,0.15); color: var(--vert-gazon); border-color: rgba(46,204,113,0.4); font-weight: 900; }
+.match-stat-pill.loss { background: rgba(231,76,60,0.15); color: #e74c3c; border-color: rgba(231,76,60,0.4); font-weight: 900; }
+.match-stat-pill.draw { background: rgba(189,195,199,0.15); color: #bdc3c7; border-color: rgba(189,195,199,0.4); font-weight: 900; }
+.match-stat-pill.points.positive { background: rgba(241,196,15,0.15); color: var(--jaune-or); border-color: rgba(241,196,15,0.5); font-weight: 900; }
+.match-stat-pill.points.negative { background: rgba(231,76,60,0.15); color: #e74c3c; border-color: rgba(231,76,60,0.4); font-weight: 900; }
+.match-stat-pill.eclat { color: var(--vert-gazon); border-color: rgba(46,204,113,0.3); }
+.match-stat-pill.antijeu { color: #e74c3c; border-color: rgba(231,76,60,0.3); }
+.match-stat-pill.yellow { color: var(--jaune-or); border-color: rgba(241,196,15,0.3); }
+.match-stat-pill.red { color: #e74c3c; border-color: rgba(231,76,60,0.4); }
+.match-stat-pill.bonus { background: linear-gradient(145deg, rgba(241,196,15,0.15), rgba(46,204,113,0.1)); color: var(--jaune-or); border-color: rgba(241,196,15,0.4); font-weight: 900; }
 
 /* SANCTION NIVEAU 2 - Accès restreint */
 .restricted-banner {

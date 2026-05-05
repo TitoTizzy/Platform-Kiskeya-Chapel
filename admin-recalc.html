@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Recalcul Éclats | Passion Football</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/mobile-base.css">
+    <style>
+        :root {
+            --anthracite: #0a0a0a;
+            --vert-gazon: #2ecc71;
+            --jaune-or: #f1c40f;
+            --rouge-card: #e74c3c;
+            --border-silver: rgba(255, 255, 255, 0.1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 40px 20px;
+            background: var(--anthracite);
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            min-height: 100vh;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .subtitle { font-size: 0.7rem; letter-spacing: 4px; color: var(--jaune-or); font-weight: 700; }
+        h1 { font-size: 1.8rem; font-weight: 900; margin: 8px 0; }
+        h1 span { color: var(--vert-gazon); }
+        .info {
+            background: rgba(241, 196, 15, 0.08);
+            border: 1px solid rgba(241, 196, 15, 0.3);
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin: 25px 0;
+            line-height: 1.6;
+            font-size: 0.9rem;
+            color: #f5e9b5;
+        }
+        .info strong { color: var(--jaune-or); }
+
+        .stats-banner {
+            display: flex; gap: 25px; flex-wrap: wrap;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid var(--border-silver);
+            border-radius: 14px;
+            padding: 20px 24px;
+            margin: 20px 0;
+        }
+        .stat { display: flex; flex-direction: column; }
+        .stat-num { font-size: 1.8rem; font-weight: 900; color: var(--jaune-or); }
+        .stat-label { font-size: 0.7rem; color: #888; letter-spacing: 1.5px; text-transform: uppercase; }
+
+        button {
+            background: var(--vert-gazon); color: #000; border: none;
+            padding: 14px 28px; border-radius: 10px; cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 900; letter-spacing: 1.5px; font-size: 0.9rem;
+            transition: 0.3s;
+        }
+        button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(46,204,113,0.3); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .secondary {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-silver);
+            color: #ccc;
+        }
+        .secondary:hover { background: var(--jaune-or); color: #000; border-color: var(--jaune-or); }
+
+        .progress {
+            height: 8px; background: rgba(255,255,255,0.05);
+            border-radius: 50px; overflow: hidden; margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, var(--vert-gazon), var(--jaune-or));
+            width: 0%; transition: 0.3s;
+        }
+
+        .log {
+            background: #050505;
+            border: 1px solid var(--border-silver);
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            max-height: 400px; overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .log .ok { color: var(--vert-gazon); }
+        .log .skip { color: var(--jaune-or); }
+        .log .err { color: var(--rouge-card); }
+        .log .info-line { color: #888; }
+
+        a.back { color: #888; font-size: 0.85rem; text-decoration: none; }
+        a.back:hover { color: var(--jaune-or); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <a href="dashboard.html" class="back">← Retour au dashboard</a>
+        <span class="subtitle" style="display:block; margin-top:20px;">OUTIL SUPERADMIN</span>
+        <h1>RECALCUL <span>ÉCLATS</span></h1>
+
+        <div class="info">
+            <strong>📌 Pourquoi ce recalcul ?</strong><br>
+            Selon le barème officiel : <strong>1 action d'éclat = +10 points</strong>.
+            L'import depuis l'Excel n'avait pas appliqué ce bonus pour les joueurs avec des éclats.
+            Ce script ajoute la différence manquante au <code>total_points</code> de chaque joueur concerné.<br><br>
+            <strong>✅ Idempotent</strong> — Tu peux relancer ce script sans risque, il ne corrige que les joueurs pas encore corrigés (flag <code>eclat_recalcule: true</code> ajouté).
+        </div>
+
+        <div class="stats-banner">
+            <div class="stat"><span class="stat-num" id="stTotal">0</span><span class="stat-label">Joueurs concernés</span></div>
+            <div class="stat"><span class="stat-num" id="stCorrected">0</span><span class="stat-label">Corrigés</span></div>
+            <div class="stat"><span class="stat-num" id="stSkipped">0</span><span class="stat-label">Déjà corrigés</span></div>
+            <div class="stat"><span class="stat-num" id="stPoints">0</span><span class="stat-label">Points ajoutés</span></div>
+        </div>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button id="btnRecalc">LANCER LE RECALCUL</button>
+            <button class="secondary" id="btnReload">ACTUALISER</button>
+        </div>
+
+        <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+
+        <div class="log" id="log"><span class="info-line">Prêt. Clique sur LANCER LE RECALCUL.</span></div>
+    </div>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import {
+            collection, getDocs, doc, updateDoc, increment
+        } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        await requireAuth({ minRole: 'superadmin' });
+
+        const logEl = document.getElementById('log');
+        function log(msg, cls = 'info-line') {
+            const span = document.createElement('span');
+            span.className = cls;
+            span.textContent = msg + '\n';
+            logEl.appendChild(span);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        async function recalc() {
+            const btn = document.getElementById('btnRecalc');
+            btn.disabled = true; btn.textContent = 'RECALCUL EN COURS...';
+            logEl.innerHTML = '';
+
+            log('Lecture de la collection users...');
+            const snap = await getDocs(collection(db, "users"));
+            const candidates = [];
+            snap.forEach(d => {
+                const u = { id: d.id, ...d.data() };
+                if ((u.eclat || 0) > 0) candidates.push(u);
+            });
+
+            log(`→ ${candidates.length} joueur(s) avec au moins une action d'éclat.`, 'info-line');
+            document.getElementById('stTotal').textContent = candidates.length;
+
+            let corrected = 0, skipped = 0, totalPointsAdded = 0;
+
+            for (let i = 0; i < candidates.length; i++) {
+                const u = candidates[i];
+                document.getElementById('progressFill').style.width = `${((i+1)/candidates.length)*100}%`;
+
+                if (u.eclat_recalcule === true) {
+                    log(`⊘ ${u.pseudo}  (déjà corrigé)`, 'skip');
+                    skipped++;
+                    document.getElementById('stSkipped').textContent = skipped;
+                    continue;
+                }
+
+                const bonus = (u.eclat || 0) * 10;
+                try {
+                    await updateDoc(doc(db, "users", u.id), {
+                        total_points: increment(bonus),
+                        eclat_recalcule: true,
+                        eclat_recalcule_at: new Date().toISOString(),
+                        eclat_recalcule_bonus: bonus
+                    });
+                    log(`✓ ${u.pseudo}  (+${bonus} pts pour ${u.eclat} éclat${u.eclat>1?'s':''})  →  ${(u.total_points||0)} → ${(u.total_points||0) + bonus}`, 'ok');
+                    corrected++;
+                    totalPointsAdded += bonus;
+                    document.getElementById('stCorrected').textContent = corrected;
+                    document.getElementById('stPoints').textContent = totalPointsAdded;
+                } catch (e) {
+                    log(`✗ ${u.pseudo}  ERREUR: ${e.message}`, 'err');
+                }
+            }
+
+            log('');
+            log(`========== TERMINÉ ==========`);
+            log(`✓ Corrigés : ${corrected}`, 'ok');
+            log(`⊘ Déjà corrigés : ${skipped}`, 'skip');
+            log(`+${totalPointsAdded} points au total redistribués.`, 'ok');
+
+            btn.textContent = 'RECALCUL TERMINÉ';
+        }
+
+        document.getElementById('btnRecalc').addEventListener('click', recalc);
+        document.getElementById('btnReload').addEventListener('click', () => location.reload());
+    </script>
+</body>
+</html>

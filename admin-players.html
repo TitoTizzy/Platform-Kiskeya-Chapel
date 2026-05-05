@@ -25,6 +25,7 @@
                 <h1>GESTION <span>DES JOUEURS</span></h1>
             </div>
             <div class="header-actions">
+                <a href="admin-recalc.html" class="btn-import" id="btnRecalcEclats" style="display:none;">⭐ RECALCULER ÉCLATS</a>
                 <a href="admin-merge.html" class="btn-import" id="btnMergeAccounts" style="display:none;">🔗 FUSIONNER COMPTES</a>
                 <a href="bulk-import.html" class="btn-import" id="btnBulkImport" style="display:none;">📥 IMPORTER L'EXCEL</a>
                 <button class="btn-new" id="btnNewPlayer">+ NOUVEAU JOUEUR</button>
@@ -167,6 +168,7 @@
         if (isSuperadmin) {
             document.getElementById('btnMergeAccounts').style.display = 'inline-flex';
             document.getElementById('btnBulkImport').style.display = 'inline-flex';
+            document.getElementById('btnRecalcEclats').style.display = 'inline-flex';
         }
 
         let joueurs = [];

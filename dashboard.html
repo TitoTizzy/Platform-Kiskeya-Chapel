@@ -26,10 +26,16 @@
             <div class="user-info">
                 <span class="welcome">BIENVENUE,</span>
                 <h2 class="pseudo" id="userPseudo">...</h2>
-                <button id="btnEditProfile" class="btn-edit-profile" title="Modifier mon profil">
-                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                    MODIFIER
-                </button>
+                <div class="user-actions">
+                    <button id="btnEditProfile" class="btn-edit-profile" title="Modifier mon profil">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        MODIFIER
+                    </button>
+                    <button id="btnLogoutDash" class="btn-logout-dash" title="Se déconnecter">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        SE DÉCONNECTER
+                    </button>
+                </div>
             </div>
             <div id="statusBadge" class="status-badge paid">
                 <span class="dot"></span> COMPTE À JOUR
@@ -70,7 +76,7 @@
             </div>
 
             <div class="action-card match-result" id="lastMatchCard">
-                <h3>DERNIER MATCH</h3>
+                <h3>DERNIÈRES STATS <span class="match-week-tag" id="lastMatchDate"></span></h3>
                 <div class="result-row" id="lastMatchRow">
                     <span class="match-empty">— Aucun match enregistré —</span>
                 </div>
@@ -127,7 +133,7 @@
 
     <script type="module">
         import { db, auth } from './js/firebase-config.js';
-        import { requireAuth, wireLogout } from './js/auth-guard.js';
+        import { requireAuth, wireLogout, logout } from './js/auth-guard.js';
         import { injectSidebar } from './js/nav.js';
         import { collection, query, where, orderBy, limit, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         import {
@@ -141,6 +147,10 @@
         async function init() {
             currentSession = await requireAuth();
             injectSidebar(currentSession);
+            // Bouton déconnexion direct sur le dashboard
+            document.getElementById('btnLogoutDash').addEventListener('click', () => {
+                if (confirm("Te déconnecter ?")) logout();
+            });
             renderProfile();
             wireProfileModal();
             // Module 4 : afficher l'état du vote actif (si pas en sanction niveau 2)
@@ -182,21 +192,40 @@
 
         async function loadLastMatch() {
             try {
+                // Lit la dernière entrée match_history pour LE JOUEUR connecté
                 const q = query(
-                    collection(db, "matchs"),
-                    where("statut", "==", "valide"),
-                    orderBy("date", "desc"),
+                    collection(db, "match_history"),
+                    where("player_id", "==", currentSession.profileId),
+                    orderBy("match_date", "desc"),
                     limit(1)
                 );
                 const snap = await getDocs(q);
                 if (snap.empty) return;
-                const m = snap.docs[0];
+                const h = snap.docs[0].data();
                 const row = document.getElementById('lastMatchRow');
+                document.getElementById('lastMatchDate').textContent = '• ' + h.match_date;
+
+                // Détermine le résultat du match
+                let outcomeLabel = 'PARTICIPATION', outcomeClass = '';
+                if (h.victoires > 0) { outcomeLabel = 'VICTOIRE'; outcomeClass = 'win'; }
+                else if (h.defaites > 0) { outcomeLabel = 'DÉFAITE'; outcomeClass = 'loss'; }
+                else if (h.nuls > 0) { outcomeLabel = 'NUL'; outcomeClass = 'draw'; }
+
+                const pointsClass = (h.points_match || 0) >= 0 ? 'positive' : 'negative';
+
                 row.innerHTML = `
-                    <span class="match-date">${m.id}</span>
-                    <span class="match-outcome">VALIDÉ</span>
-                    <span class="match-points">${currentSession.profile.total_points || 0} PTS</span>`;
-            } catch (e) { console.warn(e); }
+                    <div class="match-stats-grid">
+                        <div class="match-stat-pill ${outcomeClass}">${outcomeLabel}</div>
+                        <div class="match-stat-pill points ${pointsClass}">${h.points_match >= 0 ? '+' : ''}${h.points_match} PTS</div>
+                        ${h.buts > 0 ? `<div class="match-stat-pill">⚽ ${h.buts} but${h.buts > 1 ? 's' : ''}</div>` : ''}
+                        ${h.assists > 0 ? `<div class="match-stat-pill">🅰️ ${h.assists} assist${h.assists > 1 ? 's' : ''}</div>` : ''}
+                        ${h.eclat > 0 ? `<div class="match-stat-pill eclat">⭐ ${h.eclat} éclat${h.eclat > 1 ? 's' : ''}</div>` : ''}
+                        ${h.antijeu > 0 ? `<div class="match-stat-pill antijeu">⚠️ ${h.antijeu} anti-jeu</div>` : ''}
+                        ${h.jaunes > 0 ? `<div class="match-stat-pill yellow">🟨 ${h.jaunes}</div>` : ''}
+                        ${h.rouges > 0 ? `<div class="match-stat-pill red">🟥 ${h.rouges}</div>` : ''}
+                        ${h.bonus_votes > 0 ? `<div class="match-stat-pill bonus">🏆 +${h.bonus_votes} vote${h.bonus_votes > 1 ? 's' : ''}</div>` : ''}
+                    </div>`;
+            } catch (e) { console.warn("Pas d'historique encore:", e.message); }
         }
 
         function renderProfile() {
