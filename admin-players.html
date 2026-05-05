@@ -134,11 +134,20 @@
                             <option value="superadmin">Superadmin</option>
                         </select>
                     </label>
+
+                    <label id="fld-pwd-wrap">
+                        <span>Mot de passe initial <em>(au moins 6 caractères, le joueur pourra le changer)</em></span>
+                        <div class="pwd-row">
+                            <input type="text" id="fld-password" minlength="6" placeholder="Sera généré automatiquement si vide">
+                            <button type="button" class="btn-genpwd" id="btnGenPwd" title="Générer un mot de passe">🎲</button>
+                        </div>
+                    </label>
                 </div>
 
                 <div class="modal-error" id="playerError"></div>
 
                 <div class="modal-actions">
+                    <button type="button" class="btn-delete-player" id="btnDeletePlayer" style="display:none;">🗑 SUPPRIMER CE JOUEUR</button>
                     <button type="button" class="btn-cancel" id="btnCancel">ANNULER</button>
                     <button type="submit" class="btn-save-modal">ENREGISTRER</button>
                 </div>
@@ -150,12 +159,29 @@
         import { db, storage } from './js/firebase-config.js';
         import { requireAuth } from './js/auth-guard.js';
         import { injectSidebar } from './js/nav.js';
+        import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
         import {
-            collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp
+            collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where
         } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         import {
             ref, uploadBytes, getDownloadURL
         } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
+
+        // Config Firebase pour l'instance secondaire (création de compte sans déconnecter l'admin)
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCUVXlpPGeTmUf85CDhhaxeh-RtavY99OQ",
+            authDomain: "passion-football.firebaseapp.com",
+            projectId: "passion-football",
+            storageBucket: "passion-football.firebasestorage.app",
+            messagingSenderId: "731159830116",
+            appId: "1:731159830116:web:cdade0352c6c20537e4971"
+        };
+
+        function generateRandomPassword(length = 10) {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz';
+            return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        }
 
         // Garde stricte : admin+ (admin et superadmin)
         const session = await requireAuth({ minRole: 'admin' });
@@ -548,11 +574,14 @@
             document.querySelectorAll('input[name="postes"]').forEach(c => c.checked = false);
 
             // Restriction : un admin ne peut pas attribuer le rôle 'superadmin'
-            //              et ne peut pas modifier un joueur déjà superadmin (sauf lui-même? non - on bloque)
             const roleSel = document.getElementById('fld-role');
             roleSel.querySelectorAll('option').forEach(o => {
                 o.disabled = (!isSuperadmin && o.value === 'superadmin');
             });
+
+            const pwdWrap = document.getElementById('fld-pwd-wrap');
+            const pwdField = document.getElementById('fld-password');
+            const deleteBtn = document.getElementById('btnDeletePlayer');
 
             if (id) {
                 const j = joueurs.find(x => x.id === id);
@@ -573,10 +602,21 @@
                 });
                 const photo = getPhoto(j);
                 photoPrev.innerHTML = photo ? `<img src="${photo}">` : '<span class="photo-placeholder">PHOTO</span>';
+
+                // En modification : pas de mdp, mais bouton supprimer visible
+                pwdWrap.style.display = 'none';
+                pwdField.value = '';
+                deleteBtn.style.display = (isSuperadmin || j.role !== 'superadmin') ? 'inline-flex' : 'none';
+                document.getElementById('fld-email').disabled = !!j.auth_uid; // empêche le changement d'email si compte Auth lié
             } else {
                 title.innerHTML = 'NOUVEAU <span>JOUEUR</span>';
                 document.getElementById('playerForm').reset();
                 photoPrev.innerHTML = '<span class="photo-placeholder">PHOTO</span>';
+                // En création : mdp visible, pas de bouton supprimer
+                pwdWrap.style.display = 'block';
+                pwdField.value = generateRandomPassword(10);
+                deleteBtn.style.display = 'none';
+                document.getElementById('fld-email').disabled = false;
             }
 
             document.getElementById('playerModal').style.display = 'flex';
@@ -609,8 +649,8 @@
                 nom_complet: document.getElementById('fld-nom').value.trim(),
                 pseudo: document.getElementById('fld-pseudo').value.trim(),
                 email: document.getElementById('fld-email').value.trim().toLowerCase(),
-                postes: postesCoches,             // <- nouveau: array
-                poste: postesCoches[0] || null,   // <- rétrocompat: 1er poste comme legacy
+                postes: postesCoches,
+                poste: postesCoches[0] || null,
                 role: document.getElementById('fld-role').value || 'joueur'
             };
 
@@ -618,47 +658,155 @@
                 errEl.textContent = "Nom, pseudo et email sont requis.";
                 return;
             }
-
-            // Garde-fou serveur : un admin ne peut pas créer/promouvoir un superadmin
             if (!isSuperadmin && data.role === 'superadmin') {
                 errEl.textContent = "Seul le superadmin peut attribuer le rôle 'superadmin'.";
                 return;
             }
 
             try {
-                let joueurId = editingId;
-                if (!joueurId) {
-                    // Création : initialise les compteurs à 0
-                    const newDoc = await addDoc(collection(db, "users"), {
+                if (!editingId) {
+                    // ====== CRÉATION COMPLÈTE : Auth + Firestore ======
+                    let password = document.getElementById('fld-password').value.trim();
+                    if (!password || password.length < 6) {
+                        password = generateRandomPassword(10);
+                    }
+
+                    // Instance Firebase secondaire pour ne PAS déconnecter l'admin
+                    const secondaryApp = initializeApp(FIREBASE_CONFIG, 'secondary-' + Date.now());
+                    const secondaryAuth = getAuth(secondaryApp);
+
+                    let authUid;
+                    try {
+                        const cred = await createUserWithEmailAndPassword(secondaryAuth, data.email, password);
+                        authUid = cred.user.uid;
+                    } catch (authErr) {
+                        await deleteApp(secondaryApp);
+                        if (authErr.code === 'auth/email-already-in-use') {
+                            errEl.textContent = "Cet email est déjà utilisé par un compte Auth. Si tu veux le lier, va plutôt sur 'Inscriptions en attente'.";
+                        } else if (authErr.code === 'auth/weak-password') {
+                            errEl.textContent = "Mot de passe trop faible (min. 6 caractères).";
+                        } else if (authErr.code === 'auth/invalid-email') {
+                            errEl.textContent = "Email invalide.";
+                        } else {
+                            errEl.textContent = "Erreur Auth : " + authErr.message;
+                        }
+                        return;
+                    }
+
+                    // Crée le doc users avec ID = auth_uid (lookup direct dans auth-guard)
+                    await setDoc(doc(db, "users", authUid), {
                         ...data,
+                        auth_uid: authUid,
+                        status: 'approved',
                         total_points: 0, total_buts: 0, total_assists: 0,
                         total_victoires: 0, total_nuls: 0, total_defaites: 0,
                         top3_attaquant: 0, top3_defenseur: 0, top3_milieu: 0, top3_gardien: 0,
                         eclat: 0, antijeu: 0, jaunes: 0, rouges: 0,
                         mois_retard: 0,
-                        created_at: serverTimestamp()
+                        created_at: serverTimestamp(),
+                        created_by: session.profile.pseudo || session.user.email
                     });
-                    joueurId = newDoc.id;
-                } else {
-                    await updateDoc(doc(db, "users", joueurId), data);
-                }
 
-                // Upload photo si sélectionnée
-                if (selectedFile) {
-                    const url = await uploadPhoto(selectedFile, joueurId);
-                    await updateDoc(doc(db, "users", joueurId), { photo_url: url });
-                }
+                    // Upload photo si fournie
+                    if (selectedFile) {
+                        const url = await uploadPhoto(selectedFile, authUid);
+                        await updateDoc(doc(db, "users", authUid), { photo_url: url });
+                    }
 
-                if (!editingId) {
-                    alert("Joueur créé. ⚠️ N'oublie pas de créer son compte Firebase Auth manuellement avec le même email.");
+                    // Détache l'instance secondaire
+                    await signOutSecondary(secondaryAuth).catch(() => {});
+                    await deleteApp(secondaryApp);
+
+                    closeModal();
+                    chargerJoueurs();
+
+                    // Affiche les credentials à l'admin pour qu'il les transmette
+                    showCredentialsModal(data, password);
                 } else {
-                    alert("Joueur mis à jour.");
+                    // ====== MODIFICATION ======
+                    const j = joueurs.find(x => x.id === editingId);
+                    // Empêche un admin de promouvoir un autre joueur en superadmin
+                    if (!isSuperadmin && j?.role !== data.role && data.role === 'superadmin') {
+                        errEl.textContent = "Seul le superadmin peut attribuer ce rôle.";
+                        return;
+                    }
+                    // Empêche un admin de toucher à un superadmin
+                    if (!isSuperadmin && j?.role === 'superadmin') {
+                        errEl.textContent = "Tu ne peux pas modifier un superadmin.";
+                        return;
+                    }
+
+                    const updateData = { ...data };
+                    // L'email ne peut pas être changé si compte Auth déjà lié
+                    if (j?.auth_uid) delete updateData.email;
+                    await updateDoc(doc(db, "users", editingId), updateData);
+
+                    // Upload photo si fournie
+                    if (selectedFile) {
+                        const url = await uploadPhoto(selectedFile, editingId);
+                        await updateDoc(doc(db, "users", editingId), { photo_url: url });
+                    }
+
+                    closeModal();
+                    chargerJoueurs();
+                    alert("✅ Joueur mis à jour.");
                 }
-                closeModal();
-                chargerJoueurs();
             } catch (err) {
                 console.error(err);
                 errEl.textContent = "Erreur : " + err.message;
+            }
+        }
+
+        // Affiche les credentials du nouveau joueur dans une modal copier-coller
+        function showCredentialsModal(data, password) {
+            const html = `
+                <div class="creds-modal" id="credsModal">
+                    <div class="creds-content">
+                        <h2>✅ Compte créé pour <span>${data.pseudo}</span></h2>
+                        <p>Transmets ces identifiants au joueur. Il pourra changer son mot de passe ensuite depuis son dashboard.</p>
+                        <div class="creds-row"><strong>Email :</strong> <code id="credEmail">${data.email}</code></div>
+                        <div class="creds-row"><strong>Mot de passe :</strong> <code id="credPwd">${password}</code></div>
+                        <button class="btn-save-modal" onclick="
+                            navigator.clipboard.writeText('Email: ${data.email}\\nMot de passe: ${password}\\n\\nConnecte-toi sur la plateforme pour accéder à ton profil.');
+                            this.textContent='✓ COPIÉ DANS LE PRESSE-PAPIERS';
+                            setTimeout(()=>document.getElementById('credsModal').remove(), 1500);
+                        ">📋 COPIER LES IDENTIFIANTS</button>
+                    </div>
+                </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        async function deletePlayer() {
+            if (!editingId) return;
+            const j = joueurs.find(x => x.id === editingId);
+            if (!j) return;
+            if (!isSuperadmin && j.role === 'superadmin') {
+                alert("Tu ne peux pas supprimer un superadmin.");
+                return;
+            }
+
+            const confirm1 = confirm(`⚠️ Supprimer DÉFINITIVEMENT le profil de "${j.pseudo}" ?\n\nSes statistiques seront perdues.\n\n(Le compte Firebase Auth restera mais sera bloqué)`);
+            if (!confirm1) return;
+            const confirm2 = prompt(`Pour confirmer, tape exactement le pseudo : ${j.pseudo}`);
+            if (confirm2 !== j.pseudo) {
+                alert("Pseudo incorrect, suppression annulée.");
+                return;
+            }
+
+            try {
+                await deleteDoc(doc(db, "users", editingId));
+                // Supprimer aussi son historique de matchs (optionnel)
+                try {
+                    const histQ = query(collection(db, "match_history"), where("player_id", "==", editingId));
+                    const histSnap = await getDocs(histQ);
+                    for (const d of histSnap.docs) await deleteDoc(d.ref);
+                } catch (e) { console.warn(e); }
+
+                alert(`✅ Profil de ${j.pseudo} supprimé.`);
+                closeModal();
+                chargerJoueurs();
+            } catch (e) {
+                alert("Erreur suppression : " + e.message);
             }
         }
 
@@ -667,6 +815,10 @@
             document.getElementById('closePlayerModal').addEventListener('click', closeModal);
             document.getElementById('btnCancel').addEventListener('click', closeModal);
             document.getElementById('playerForm').addEventListener('submit', submitForm);
+            document.getElementById('btnDeletePlayer').addEventListener('click', deletePlayer);
+            document.getElementById('btnGenPwd').addEventListener('click', () => {
+                document.getElementById('fld-password').value = generateRandomPassword(10);
+            });
 
             // Photo upload UI
             document.getElementById('btnSelectPhoto').addEventListener('click', () => {

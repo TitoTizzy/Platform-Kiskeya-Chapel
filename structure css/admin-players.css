@@ -417,7 +417,87 @@ html, body {
     font-family: 'Montserrat', sans-serif;
     font-weight: 700; letter-spacing: 1px;
 }
-.btn-cancel:hover { background: var(--rouge-card); color: #fff; border-color: var(--rouge-card); }
+.btn-cancel:hover { background: rgba(255,255,255,0.1); }
+
+.btn-delete-player {
+    margin-right: auto;
+    background: rgba(231, 76, 60, 0.1);
+    border: 1px solid var(--rouge-card);
+    color: var(--rouge-card);
+    padding: 12px 22px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    letter-spacing: 1px;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-delete-player:hover { background: var(--rouge-card); color: #fff; }
+
+/* Champ mot de passe avec bouton générer */
+.pwd-row { display: flex; gap: 8px; }
+.pwd-row input { flex: 1; }
+.btn-genpwd {
+    background: rgba(241, 196, 15, 0.1);
+    border: 1px solid rgba(241, 196, 15, 0.4);
+    color: var(--jaune-or);
+    padding: 0 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+.btn-genpwd:hover { background: var(--jaune-or); color: #000; }
+
+/* Modal d'affichage des credentials post-création */
+.creds-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(12px);
+    z-index: 3000;
+    display: flex; justify-content: center; align-items: center;
+    padding: 20px;
+}
+.creds-content {
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    border: 2px solid var(--vert-gazon);
+    border-radius: 20px;
+    padding: 40px 35px;
+    max-width: 500px; width: 100%;
+    color: #fff;
+    box-shadow: 0 20px 60px rgba(46, 204, 113, 0.3);
+}
+.creds-content h2 {
+    margin: 0 0 14px 0;
+    font-size: 1.25rem; font-weight: 900;
+    letter-spacing: 1px;
+}
+.creds-content h2 span { color: var(--vert-gazon); }
+.creds-content p { color: #aaa; line-height: 1.5; font-size: 0.85rem; margin-bottom: 25px; }
+.creds-row {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--border-silver);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 10px 0;
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+}
+.creds-row strong { color: var(--jaune-or); font-size: 0.7rem; letter-spacing: 1.5px; }
+.creds-row code {
+    background: #000;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
+    color: var(--vert-gazon);
+    flex: 1;
+    word-break: break-all;
+}
+
+.form-grid label em { color: var(--jaune-or); font-style: normal; font-size: 0.6rem; letter-spacing: 1px; margin-left: 4px; }
 
 .btn-save-modal {
     padding: 12px 28px;
