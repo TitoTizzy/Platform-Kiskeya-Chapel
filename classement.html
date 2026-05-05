@@ -38,6 +38,16 @@
             </div>
         </header>
 
+        <!-- Filtre par période / saison -->
+        <div class="period-filter">
+            <label>📅 SAISON</label>
+            <select id="periodSelect">
+                <option value="current" selected>Saison 2025-2026 (actuelle)</option>
+                <option value="all">Toutes périodes</option>
+            </select>
+            <span class="period-hint" id="periodHint"></span>
+        </div>
+
         <!-- Onglets -->
         <nav class="ranking-tabs">
             <button class="tab-btn active" data-metric="total_points" data-label="GÉNÉRAL">GÉNÉRAL</button>
@@ -83,7 +93,7 @@
         import { db } from './js/firebase-config.js';
         import { requireAuth } from './js/auth-guard.js';
         import { injectSidebar } from './js/nav.js';
-        import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { collection, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const session = await requireAuth();
         injectSidebar(session);
@@ -126,7 +136,10 @@
             { key: 'rouges',          label: 'ROUGES',  type: 'num',   default: 0, color: 'red' }
         ];
 
-        let allUsers = [];
+        let allUsers = [];           // tous les users (avec stats cumulées)
+        let displayUsers = [];        // ce qui est affiché (filtré par période)
+        let matchHistoryCache = {};   // cache par année
+        let currentPeriod = 'all';
         let currentSort = { key: 'total_points', dir: 'desc' };
         let currentMetric = 'total_points';
         let currentLabel = 'GÉNÉRAL';
@@ -139,6 +152,82 @@
                 // SANCTION NIVEAU 1 : on cache les joueurs en retard >= 1 mois
                 if ((u.mois_retard || 0) < 1) allUsers.push(u);
             });
+        }
+
+        // Filtre par période : agrège match_history pour une année donnée
+        async function loadHistoryForYear(year) {
+            if (matchHistoryCache[year]) return matchHistoryCache[year];
+            try {
+                const q = query(
+                    collection(db, "match_history"),
+                    where("match_date", ">=", year + '-01-01'),
+                    where("match_date", "<=", year + '-12-31')
+                );
+                const snap = await getDocs(q);
+                const items = [];
+                snap.forEach(d => items.push(d.data()));
+                matchHistoryCache[year] = items;
+                return items;
+            } catch (e) {
+                console.warn("Erreur lecture match_history:", e.message);
+                return [];
+            }
+        }
+
+        function aggregateByPlayer(items) {
+            const agg = {};
+            items.forEach(h => {
+                const id = h.player_id;
+                if (!id) return;
+                const baseUser = allUsers.find(u => u.id === id);
+                if (!baseUser) return; // joueur masqué (sanction) → on l'ignore
+                if (!agg[id]) {
+                    agg[id] = {
+                        ...baseUser,    // hérite photo, postes, pseudo, etc.
+                        total_points: 0, total_buts: 0, total_assists: 0,
+                        total_victoires: 0, total_nuls: 0, total_defaites: 0,
+                        jaunes: 0, rouges: 0, eclat: 0, antijeu: 0,
+                        top3_attaquant: 0, top3_defenseur: 0, top3_milieu: 0, top3_gardien: 0
+                    };
+                }
+                const a = agg[id];
+                a.total_points += h.points_match || 0;
+                a.total_buts += h.buts || 0;
+                a.total_assists += h.assists || 0;
+                a.total_victoires += h.victoires || 0;
+                a.total_nuls += h.nuls || 0;
+                a.total_defaites += h.defaites || 0;
+                a.jaunes += h.jaunes || 0;
+                a.rouges += h.rouges || 0;
+                a.eclat += h.eclat || 0;
+                a.antijeu += h.antijeu || 0;
+                a.top3_attaquant += h.top3_attaquant || 0;
+                a.top3_defenseur += h.top3_defenseur || 0;
+                a.top3_milieu += h.top3_milieu || 0;
+                a.top3_gardien += h.top3_gardien || 0;
+            });
+            return Object.values(agg);
+        }
+
+        async function applyPeriod() {
+            currentPeriod = document.getElementById('periodSelect').value;
+            const hint = document.getElementById('periodHint');
+            if (currentPeriod === 'current' || currentPeriod === 'all') {
+                // La saison 2025-2026 actuelle = toutes les stats cumulées (on vient de commencer)
+                displayUsers = allUsers;
+                hint.textContent = currentPeriod === 'current'
+                    ? `Saison 2025-2026 • ${allUsers.length} joueurs`
+                    : 'Toutes les statistiques cumulées';
+            } else {
+                hint.textContent = 'Chargement...';
+                const items = await loadHistoryForYear(currentPeriod);
+                displayUsers = aggregateByPlayer(items);
+                hint.textContent = items.length === 0
+                    ? `Aucun match enregistré pour cette période`
+                    : `${items.length} entrée(s) match — ${displayUsers.length} joueur(s)`;
+            }
+            // Re-render avec la nouvelle source de données
+            selectTab(currentMetric, currentLabel);
         }
 
         // ========== VUE GÉNÉRAL (tableau Excel triable) ==========
@@ -177,7 +266,7 @@
             });
 
             // Body
-            const sorted = [...allUsers].sort((a, b) => {
+            const sorted = [...displayUsers].sort((a, b) => {
                 const av = a[currentSort.key] ?? (currentSort.key === 'pseudo' ? '' : 0);
                 const bv = b[currentSort.key] ?? (currentSort.key === 'pseudo' ? '' : 0);
                 if (typeof av === 'string') return currentSort.dir === 'desc' ? bv.localeCompare(av) : av.localeCompare(bv);
@@ -206,7 +295,7 @@
 
         // ========== PODIUM JO ==========
         function renderPodium(metric) {
-            const sorted = [...allUsers]
+            const sorted = [...displayUsers]
                 .filter(u => (u[metric] ?? 0) > 0)
                 .sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0));
             const top3 = sorted.slice(0, 3);
@@ -242,7 +331,7 @@
             document.getElementById('generalTableSection').style.display = 'none';
             document.getElementById('compactRankingSection').style.display = 'block';
 
-            const sorted = [...allUsers]
+            const sorted = [...displayUsers]
                 .filter(u => (u[metric] ?? 0) !== 0)
                 .sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0))
                 .slice(0, 10); // TOP 10
@@ -428,8 +517,12 @@
         bindShareBtn('btnShareList', buildListFrame, 'classement');
 
         // ========== INIT ==========
+        document.getElementById('periodSelect').addEventListener('change', applyPeriod);
+
         async function init() {
             await chargerUsers();
+            displayUsers = allUsers; // saison 2025-2026 = toutes les stats actuelles
+            document.getElementById('periodHint').textContent = `Saison 2025-2026 • ${allUsers.length} joueurs`;
             selectTab('total_points', 'GÉNÉRAL');
         }
         init();

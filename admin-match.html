@@ -333,8 +333,9 @@
 
                     await updateDoc(doc(db, "users", id), updateData);
 
-                    // HISTORIQUE PAR MATCH (utilisé par dashboard "Dernières stats de la semaine")
+                    // HISTORIQUE PAR MATCH (utilisé par dashboard + filtre par période)
                     const playerInfo = listeMembres.find(x => x.id === id);
+                    const topInc = topCount[id] || {};
                     await setDoc(doc(db, "match_history", `${date}_${id}`), {
                         match_date: date,
                         player_id: id,
@@ -350,6 +351,11 @@
                         antijeu: antijeu,
                         bonus_votes: bonusVotes[id] || 0,
                         points_match: pts,
+                        // Top 3 votes reçus pour ce match (pour le filtre par période)
+                        top3_attaquant: topInc.top3_attaquant || 0,
+                        top3_defenseur: topInc.top3_defenseur || 0,
+                        top3_milieu: topInc.top3_milieu || 0,
+                        top3_gardien: topInc.top3_gardien || 0,
                         recorded_at: serverTimestamp()
                     });
                 }
