@@ -437,6 +437,23 @@ html, body {
 }
 .btn-delete-player:hover { background: var(--rouge-card); color: #fff; }
 
+.btn-reset-pwd {
+    background: rgba(241, 196, 15, 0.1);
+    border: 1px solid var(--jaune-or);
+    color: var(--jaune-or);
+    padding: 12px 22px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    letter-spacing: 1px;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-reset-pwd:hover { background: var(--jaune-or); color: #000; }
+
 /* Champ mot de passe avec bouton générer */
 .pwd-row { display: flex; gap: 8px; }
 .pwd-row input { flex: 1; }

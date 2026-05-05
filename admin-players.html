@@ -147,7 +147,8 @@
                 <div class="modal-error" id="playerError"></div>
 
                 <div class="modal-actions">
-                    <button type="button" class="btn-delete-player" id="btnDeletePlayer" style="display:none;">🗑 SUPPRIMER CE JOUEUR</button>
+                    <button type="button" class="btn-delete-player" id="btnDeletePlayer" style="display:none;">🗑 SUPPRIMER</button>
+                    <button type="button" class="btn-reset-pwd" id="btnResetPwd" style="display:none;">🔑 RÉINIT. MDP</button>
                     <button type="button" class="btn-cancel" id="btnCancel">ANNULER</button>
                     <button type="submit" class="btn-save-modal">ENREGISTRER</button>
                 </div>
@@ -160,7 +161,8 @@
         import { requireAuth } from './js/auth-guard.js';
         import { injectSidebar } from './js/nav.js';
         import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+        import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+        import { auth as primaryAuth } from './js/firebase-config.js';
         import {
             collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, where
         } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
@@ -603,19 +605,21 @@
                 const photo = getPhoto(j);
                 photoPrev.innerHTML = photo ? `<img src="${photo}">` : '<span class="photo-placeholder">PHOTO</span>';
 
-                // En modification : pas de mdp, mais bouton supprimer visible
+                // En modification : pas de mdp, mais bouton supprimer + bouton reset mdp visibles
                 pwdWrap.style.display = 'none';
                 pwdField.value = '';
                 deleteBtn.style.display = (isSuperadmin || j.role !== 'superadmin') ? 'inline-flex' : 'none';
+                document.getElementById('btnResetPwd').style.display = j.email ? 'inline-flex' : 'none';
                 document.getElementById('fld-email').disabled = !!j.auth_uid; // empêche le changement d'email si compte Auth lié
             } else {
                 title.innerHTML = 'NOUVEAU <span>JOUEUR</span>';
                 document.getElementById('playerForm').reset();
                 photoPrev.innerHTML = '<span class="photo-placeholder">PHOTO</span>';
-                // En création : mdp visible, pas de bouton supprimer
+                // En création : mdp visible, pas de bouton supprimer/reset
                 pwdWrap.style.display = 'block';
                 pwdField.value = generateRandomPassword(10);
                 deleteBtn.style.display = 'none';
+                document.getElementById('btnResetPwd').style.display = 'none';
                 document.getElementById('fld-email').disabled = false;
             }
 
@@ -776,6 +780,28 @@
             document.body.insertAdjacentHTML('beforeend', html);
         }
 
+        async function resetPwdJoueur() {
+            if (!editingId) return;
+            const j = joueurs.find(x => x.id === editingId);
+            if (!j || !j.email) {
+                alert("Ce joueur n'a pas d'email enregistré.");
+                return;
+            }
+            if (!confirm(`Envoyer un email de réinitialisation de mot de passe à :\n\n${j.email}\n\nLe joueur recevra un lien pour définir son nouveau mot de passe.`)) return;
+
+            try {
+                await sendPasswordResetEmail(primaryAuth, j.email);
+                alert(`✅ Email envoyé à ${j.email}\n\nLe joueur doit cliquer sur le lien dans l'email pour choisir son nouveau mot de passe.\n\n⚠️ Vérifie aussi le dossier spam si l'email n'arrive pas.`);
+            } catch (e) {
+                console.error(e);
+                if (e.code === 'auth/user-not-found') {
+                    alert("Aucun compte Firebase Auth trouvé pour cet email. As-tu créé son compte ?");
+                } else {
+                    alert("Erreur : " + e.message);
+                }
+            }
+        }
+
         async function deletePlayer() {
             if (!editingId) return;
             const j = joueurs.find(x => x.id === editingId);
@@ -816,6 +842,7 @@
             document.getElementById('btnCancel').addEventListener('click', closeModal);
             document.getElementById('playerForm').addEventListener('submit', submitForm);
             document.getElementById('btnDeletePlayer').addEventListener('click', deletePlayer);
+            document.getElementById('btnResetPwd').addEventListener('click', resetPwdJoueur);
             document.getElementById('btnGenPwd').addEventListener('click', () => {
                 document.getElementById('fld-password').value = generateRandomPassword(10);
             });
