@@ -32,14 +32,36 @@ html, body {
 .logout svg { color: white; opacity: 0.4; }
 
 .communaute-content { margin-left: 80px; padding: 40px; width: calc(100% - 80px); box-sizing: border-box; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 50px; }
+.page-header {
+    display: flex; flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 30px; gap: 18px;
+}
+.header-text { flex-grow: 0; }
 .subtitle { font-size: 0.7rem; letter-spacing: 4px; color: var(--jaune-or); font-weight: 700; }
 .page-header h2 { font-size: 2.2rem; font-weight: 900; margin: 5px 0; }
 .page-header h2 span { color: var(--vert-gazon); }
 
-.search-box { display: flex; gap: 10px; background: rgba(255,255,255,0.05); padding: 5px; border-radius: 12px; border: 1px solid var(--border-silver); }
-.search-box input { background: transparent; border: none; padding: 10px; color: white; outline: none; }
-.search-box button { background: var(--vert-gazon); border: none; padding: 10px 20px; border-radius: 8px; font-weight: 900; cursor: pointer; }
+.search-box {
+    display: flex; gap: 10px;
+    background: rgba(255,255,255,0.05);
+    padding: 5px; border-radius: 12px;
+    border: 1px solid var(--border-silver);
+    width: 100%;
+    max-width: 600px;
+}
+.search-box input { background: transparent; border: none; padding: 12px; color: white; outline: none; flex: 1; min-width: 0; }
+.search-box button {
+    background: var(--vert-gazon);
+    border: none;
+    padding: 12px 22px;
+    border-radius: 8px;
+    font-weight: 900;
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
 
 /* --- GRILLE DES MEMBRES --- */
 .members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 30px; }

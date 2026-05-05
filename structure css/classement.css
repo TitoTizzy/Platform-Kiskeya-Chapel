@@ -52,7 +52,12 @@ html, body {
 }
 .page-header {
     display: flex; justify-content: space-between; align-items: flex-end;
-    margin-bottom: 30px; flex-wrap: wrap; gap: 16px;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
+}
+@media (max-width: 768px) {
+    .page-header { flex-direction: column; align-items: stretch; }
+    .share-buttons { width: 100%; }
+    .share-buttons .btn-share { flex: 1; justify-content: center; padding: 12px 8px; }
 }
 .subtitle { font-size: 0.7rem; letter-spacing: 4px; color: var(--jaune-or); font-weight: 700; }
 .page-header h2 { font-size: 2.2rem; font-weight: 900; margin: 8px 0 0 0; }
@@ -114,12 +119,13 @@ html, body {
     font-style: italic;
 }
 
-/* ONGLETS */
+/* ONGLETS DESKTOP */
 .ranking-tabs {
     display: flex; gap: 8px; margin-bottom: 30px;
     overflow-x: auto; padding-bottom: 12px;
     scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;
     -webkit-overflow-scrolling: touch;
+    flex-wrap: wrap;
 }
 .ranking-tabs::-webkit-scrollbar { height: 4px; }
 .ranking-tabs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
@@ -128,6 +134,40 @@ html, body {
     color: #888; padding: 10px 20px; border-radius: 50px;
     font-weight: 700; font-size: 0.7rem; cursor: pointer; white-space: nowrap;
     transition: 0.3s; font-family: 'Montserrat', sans-serif; letter-spacing: 1px;
+}
+
+/* SELECT MOBILE / TABLETTE */
+.ranking-tabs-mobile { display: none; margin-bottom: 26px; }
+.ranking-tabs-mobile label {
+    display: block; font-size: 0.7rem; letter-spacing: 1.5px;
+    color: var(--jaune-or); font-weight: 800;
+    margin-bottom: 8px;
+}
+.ranking-tabs-mobile select {
+    width: 100%;
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    color: #fff;
+    border: 1px solid var(--jaune-or);
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2218%22%20height%3D%2218%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f1c40f%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 18px center;
+    padding-right: 50px;
+}
+.ranking-tabs-mobile select:focus { outline: none; box-shadow: 0 0 0 3px rgba(241,196,15,0.2); }
+
+/* Bascule selon l'écran */
+@media (max-width: 1024px) {
+    .ranking-tabs { display: none; }
+    .ranking-tabs-mobile { display: block; }
 }
 .tab-btn.active { background: var(--jaune-or); color: black; border-color: var(--jaune-or); }
 .tab-btn.btn-neg:hover { border-color: var(--rouge-card); color: var(--rouge-card); }

@@ -48,7 +48,7 @@
             <span class="period-hint" id="periodHint"></span>
         </div>
 
-        <!-- Onglets -->
+        <!-- Onglets : boutons (desktop) + select (mobile/tablette) -->
         <nav class="ranking-tabs">
             <button class="tab-btn active" data-metric="total_points" data-label="GÉNÉRAL">GÉNÉRAL</button>
             <button class="tab-btn" data-metric="total_buts" data-label="BUTEURS">BUTEURS</button>
@@ -63,6 +63,31 @@
             <button class="tab-btn btn-neg" data-metric="jaunes" data-label="CARTONS JAUNES">JAUNES</button>
             <button class="tab-btn btn-neg" data-metric="rouges" data-label="CARTONS ROUGES">ROUGES</button>
         </nav>
+        <div class="ranking-tabs-mobile">
+            <label>📊 CATÉGORIE</label>
+            <select id="tabSelect">
+                <optgroup label="Général & Stats positives">
+                    <option value="total_points|GÉNÉRAL" selected>🏆 Général</option>
+                    <option value="total_buts|BUTEURS">⚽ Buteurs</option>
+                    <option value="total_assists|PASSEURS">🅰️ Passeurs</option>
+                    <option value="total_victoires|VICTOIRES">✅ Victoires</option>
+                </optgroup>
+                <optgroup label="Top par poste (votés)">
+                    <option value="top3_attaquant|TOP ATTAQUANT">🥇 Top Attaquant</option>
+                    <option value="top3_defenseur|TOP DÉFENSEUR">🛡️ Top Défenseur</option>
+                    <option value="top3_milieu|TOP MILIEU">⚙️ Top Milieu</option>
+                    <option value="top3_gardien|TOP GARDIEN">🧤 Top Gardien</option>
+                </optgroup>
+                <optgroup label="Spécial">
+                    <option value="eclat|ÉCLATS">⭐ Actions d'éclat</option>
+                </optgroup>
+                <optgroup label="Stats négatives">
+                    <option value="antijeu|ANTI-JEU">⚠️ Anti-jeu</option>
+                    <option value="jaunes|CARTONS JAUNES">🟨 Cartons jaunes</option>
+                    <option value="rouges|CARTONS ROUGES">🟥 Cartons rouges</option>
+                </optgroup>
+            </select>
+        </div>
 
         <!-- Conteneur capturé pour le partage -->
         <div id="shareableArea">
@@ -382,7 +407,17 @@
                 document.querySelector('.tab-btn.active').classList.remove('active');
                 btn.classList.add('active');
                 selectTab(btn.dataset.metric, btn.dataset.label);
+                // sync select mobile
+                document.getElementById('tabSelect').value = `${btn.dataset.metric}|${btn.dataset.label}`;
             });
+        });
+        // Sync depuis le select mobile vers les boutons
+        document.getElementById('tabSelect').addEventListener('change', (e) => {
+            const [metric, label] = e.target.value.split('|');
+            document.querySelector('.tab-btn.active')?.classList.remove('active');
+            const btn = document.querySelector(`.tab-btn[data-metric="${metric}"]`);
+            if (btn) btn.classList.add('active');
+            selectTab(metric, label);
         });
 
         // ========== PARTAGE SOCIAL ==========
