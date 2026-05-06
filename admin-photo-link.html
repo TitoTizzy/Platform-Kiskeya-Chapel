@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Liaison Photos | Passion Football</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="structure css/mobile-base.css">
+    <link rel="stylesheet" href="structure css/admin-players.css">
+    <link rel="stylesheet" href="structure css/nav-shared.css">
+    <style>
+        .photo-link-main {
+            margin-left: 80px;
+            padding: 40px 50px 100px;
+            width: calc(100% - 80px);
+            box-sizing: border-box;
+        }
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 25px;
+        }
+        .photo-card {
+            background: rgba(20, 20, 20, 0.85);
+            border: 1px solid var(--border-silver);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex; flex-direction: column;
+            align-items: center; text-align: center; gap: 10px;
+        }
+        .photo-card.linked { border-color: var(--vert-gazon); background: rgba(46,204,113,0.06); }
+        .photo-card.unmatched { border-color: rgba(231, 76, 60, 0.3); }
+        .photo-thumb {
+            width: 120px; height: 120px; border-radius: 50%;
+            object-fit: cover; border: 3px solid var(--border-silver);
+            background: #1a1a1a;
+        }
+        .photo-thumb.placeholder {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; color: #555;
+        }
+        .photo-filename {
+            font-size: 0.7rem; color: #888;
+            word-break: break-all; line-height: 1.3;
+            font-family: 'Courier New', monospace;
+            background: rgba(0,0,0,0.4);
+            padding: 6px 10px;
+            border-radius: 6px;
+            max-width: 100%;
+        }
+        .photo-suggestion {
+            font-size: 0.65rem; color: var(--jaune-or);
+            font-weight: 800; letter-spacing: 1px;
+            margin-top: 4px;
+        }
+        .photo-card select {
+            width: 100%;
+            background: #000; color: #fff;
+            border: 1px solid var(--border-silver);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.85rem;
+        }
+        .photo-card select option { background: #0a0a0a; color: #fff; }
+
+        .summary-bar {
+            display: flex; gap: 25px; flex-wrap: wrap;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid var(--border-silver);
+            border-radius: 14px;
+            padding: 18px 24px;
+            margin: 20px 0;
+        }
+        .summary-stat { display: flex; flex-direction: column; }
+        .summary-num { font-size: 1.6rem; font-weight: 900; }
+        .summary-num.matched { color: var(--vert-gazon); }
+        .summary-num.unmatched { color: var(--rouge-card); }
+        .summary-label { font-size: 0.65rem; color: #888; letter-spacing: 1.5px; text-transform: uppercase; }
+
+        .actions-row {
+            display: flex; gap: 12px; flex-wrap: wrap;
+            margin-top: 26px;
+        }
+        .btn-apply {
+            background: var(--vert-gazon); color: #000; border: none;
+            padding: 14px 28px; border-radius: 10px; cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 900; letter-spacing: 1.5px; font-size: 0.9rem;
+        }
+        .btn-apply:hover:not(:disabled) { transform: translateY(-2px); }
+        .btn-apply:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-back {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-silver);
+            color: #ccc;
+            padding: 14px 22px; border-radius: 10px;
+            text-decoration: none; display: inline-flex; align-items: center;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700; letter-spacing: 1px; font-size: 0.85rem;
+        }
+        .btn-back:hover { background: rgba(255,255,255,0.1); }
+
+        @media (max-width: 768px) {
+            .photo-link-main { margin-left: 0; padding: 16px 14px 100px; width: 100%; }
+            .photo-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .photo-card { padding: 10px; }
+            .photo-thumb { width: 80px; height: 80px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-watermark-container">
+        <img src="pics/background_index.jpeg" alt="Fond" class="bg-image">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <nav class="side-nav" id="sideNav"></nav>
+
+    <main class="photo-link-main">
+        <header class="players-header">
+            <div class="title-section">
+                <span class="subtitle" style="font-size:0.7rem; letter-spacing:4px; color:var(--jaune-or); font-weight:700;">OUTIL SUPERADMIN</span>
+                <h1>LIAISON <span>PHOTOS</span></h1>
+                <p style="color:#aaa; max-width:700px; line-height:1.5; margin-top:14px; font-size:0.9rem;">
+                    Pour chaque photo du dossier <code>pics/profils/</code>, choisis le joueur correspondant dans le menu.
+                    Le système te propose une suggestion automatique. Clique <strong>APPLIQUER</strong> pour enregistrer.
+                </p>
+            </div>
+        </header>
+
+        <div class="summary-bar">
+            <div class="summary-stat"><span class="summary-num" id="stPhotos">0</span><span class="summary-label">Photos disponibles</span></div>
+            <div class="summary-stat"><span class="summary-num matched" id="stMatched">0</span><span class="summary-label">Liées</span></div>
+            <div class="summary-stat"><span class="summary-num unmatched" id="stUnmatched">0</span><span class="summary-label">Non liées</span></div>
+        </div>
+
+        <div class="photo-grid" id="photoGrid"></div>
+
+        <div class="actions-row">
+            <a href="admin-players.html" class="btn-back">← RETOUR JOUEURS</a>
+            <button class="btn-apply" id="btnApply">💾 APPLIQUER LES LIAISONS</button>
+        </div>
+    </main>
+
+    <script type="module">
+        import { db } from './js/firebase-config.js';
+        import { requireAuth } from './js/auth-guard.js';
+        import { injectSidebar } from './js/nav.js';
+        import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        const session = await requireAuth({ minRole: 'superadmin' });
+        injectSidebar(session);
+
+        // Liste des fichiers dans pics/profils/
+        const PHOTOS = [
+            'AudnerWorship_Martin.jpg',
+            'Chrisley_Louis.jpg',
+            'Clarklovensky_Sinfestin.jpeg',
+            'Darley_Vaval.jpg',
+            'Emmanuel_Alexandre.jpeg',
+            'Georgy_Jeanty.jpg',
+            'Hadad_Noël.jpg',
+            'JonathanRythchy_NELSON.jpg',
+            'Jose-Mickel_Mérise.jpeg',
+            'Louis_Ancito.jpeg',
+            'Oriantyl_Fenly.heif',
+            'PaulCedrick_SaintGilles.jpeg',
+            'PaulRicmael_Jean Julien.jpeg',
+            'PierreGuyJoe-nathan.jpeg',
+            'Robertojunior_Desrouilleres.heic',
+            'Screenshot_20251207-112537_Photos - Jephthe Demosthene.jpg',
+            'Screenshot_20251207-213532-435 - Christian St David.png',
+            'Snapchat-98090215 - Benjyrosemond.jpg',
+            'SolutionPlusTechnology_Haïti.jpeg',
+            'Vadner_Tesnor.jpeg',
+            'YvesDanois_Neret.jpeg',
+            'myrtho.jpg',
+            'prosperdaveanthony_randolph.jpeg'
+        ];
+
+        // Mapping manuel pré-calculé (les associations évidentes)
+        const SUGGESTED_MAPPING = {
+            'myrtho.jpg': 'Myrtho',
+            'Georgy_Jeanty.jpg': 'Georgy',
+            'Chrisley_Louis.jpg': 'Chrisley',
+            'Hadad_Noël.jpg': 'Adad',
+            'Oriantyl_Fenly.heif': 'Fenley',
+            'Louis_Ancito.jpeg': 'Ancyto',
+            'AudnerWorship_Martin.jpg': 'Martin',
+            'Clarklovensky_Sinfestin.jpeg': 'Lovensky',
+            'PaulRicmael_Jean Julien.jpeg': 'Jean Julien',
+            'prosperdaveanthony_randolph.jpeg': 'Dave',
+            'Screenshot_20251207-112537_Photos - Jephthe Demosthene.jpg': 'Jephté',
+            'Screenshot_20251207-213532-435 - Christian St David.png': 'Christian',
+            'Emmanuel_Alexandre.jpeg': 'Alexandre',
+            'PierreGuyJoe-nathan.jpeg': 'Jonathan P.',
+            // Ambigus : pas de pseudo direct évident
+            'Robertojunior_Desrouilleres.heic': null,
+            'JonathanRythchy_NELSON.jpg': null,
+            'Vadner_Tesnor.jpeg': null,
+            'SolutionPlusTechnology_Haïti.jpeg': null,
+            'Jose-Mickel_Mérise.jpeg': null,
+            'Darley_Vaval.jpg': null,
+            'PaulCedrick_SaintGilles.jpeg': null,
+            'YvesDanois_Neret.jpeg': null,
+            'Snapchat-98090215 - Benjyrosemond.jpg': null
+        };
+
+        let allUsers = [];
+        const linkChoices = {}; // filename -> userId
+
+        function normalize(s) {
+            return (s || '').toLowerCase()
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .replace(/[^a-z0-9]/g, ' ')
+                .trim();
+        }
+
+        function extractTokensFromFilename(filename) {
+            // Retire l'extension, splitte sur _ - . espace
+            const base = filename.replace(/\.[^.]+$/, '');
+            return normalize(base).split(/\s+/).filter(t => t.length > 1);
+        }
+
+        function fuzzyFindUser(filename) {
+            const tokens = extractTokensFromFilename(filename);
+            if (tokens.length === 0) return null;
+
+            let best = null;
+            for (const u of allUsers) {
+                const userTokens = [
+                    ...normalize(u.pseudo).split(/\s+/),
+                    ...normalize(u.nom_complet).split(/\s+/)
+                ].filter(t => t.length > 1);
+
+                let score = 0;
+                for (const t of tokens) {
+                    if (userTokens.some(ut => ut === t)) score += 10;
+                    else if (userTokens.some(ut => ut.includes(t) || t.includes(ut))) score += 4;
+                }
+                if (score > 0 && (!best || score > best.score)) {
+                    best = { user: u, score };
+                }
+            }
+            return best && best.score >= 4 ? best.user : null;
+        }
+
+        async function loadUsers() {
+            const snap = await getDocs(collection(db, "users"));
+            allUsers = [];
+            snap.forEach(d => allUsers.push({ id: d.id, ...d.data() }));
+            allUsers.sort((a, b) => (a.pseudo || '').localeCompare(b.pseudo || '', 'fr', { sensitivity: 'base' }));
+        }
+
+        function findUserByPseudo(pseudo) {
+            if (!pseudo) return null;
+            const target = normalize(pseudo);
+            return allUsers.find(u => normalize(u.pseudo) === target) || null;
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('photoGrid');
+            grid.innerHTML = '';
+            let matched = 0;
+
+            PHOTOS.forEach(filename => {
+                // 1. Suggestion explicite ?
+                let suggested = findUserByPseudo(SUGGESTED_MAPPING[filename]);
+                // 2. Sinon, fuzzy match
+                if (!suggested) suggested = fuzzyFindUser(filename);
+
+                // Si déjà associé en base, le précharge
+                const existing = allUsers.find(u =>
+                    (u.photo_url === 'pics/profils/' + filename) ||
+                    (u.photo_nom === 'profils/' + filename)
+                );
+                const initial = existing || suggested;
+                if (initial) {
+                    linkChoices[filename] = initial.id;
+                    matched++;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'photo-card' + (initial ? ' linked' : ' unmatched');
+                const isHeic = /\.(heic|heif)$/i.test(filename);
+                const thumbHtml = isHeic
+                    ? `<div class="photo-thumb placeholder">📷</div>`
+                    : `<img class="photo-thumb" src="pics/profils/${filename}" onerror="this.classList.add('placeholder'); this.outerHTML='<div class=&quot;photo-thumb placeholder&quot;>📷</div>'">`;
+
+                card.innerHTML = `
+                    ${thumbHtml}
+                    <div class="photo-filename">${filename}</div>
+                    ${initial ? `<div class="photo-suggestion">→ ${initial.pseudo}</div>` : `<div class="photo-suggestion" style="color:#e74c3c;">Aucune suggestion</div>`}
+                    <select data-file="${filename}">
+                        <option value="">— Ne pas lier —</option>
+                        ${allUsers.map(u => `<option value="${u.id}" ${initial?.id === u.id ? 'selected' : ''}>${u.pseudo}${u.nom_complet && u.nom_complet !== u.pseudo ? ' — ' + u.nom_complet : ''}</option>`).join('')}
+                    </select>
+                `;
+                grid.appendChild(card);
+            });
+
+            grid.querySelectorAll('select').forEach(sel => {
+                sel.addEventListener('change', () => {
+                    const filename = sel.dataset.file;
+                    if (sel.value) linkChoices[filename] = sel.value;
+                    else delete linkChoices[filename];
+                    updateSummary();
+                    sel.closest('.photo-card').classList.toggle('linked', !!sel.value);
+                    sel.closest('.photo-card').classList.toggle('unmatched', !sel.value);
+                });
+            });
+
+            document.getElementById('stPhotos').textContent = PHOTOS.length;
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const matched = Object.keys(linkChoices).length;
+            document.getElementById('stMatched').textContent = matched;
+            document.getElementById('stUnmatched').textContent = PHOTOS.length - matched;
+        }
+
+        async function applyLinks() {
+            const btn = document.getElementById('btnApply');
+            btn.disabled = true; btn.textContent = '💾 APPLICATION...';
+            let count = 0;
+            try {
+                for (const [filename, userId] of Object.entries(linkChoices)) {
+                    await updateDoc(doc(db, "users", userId), {
+                        photo_url: 'pics/profils/' + filename,
+                        photo_nom: 'profils/' + filename
+                    });
+                    count++;
+                }
+                alert(`✅ ${count} photo(s) liée(s) avec succès !\n\nLes photos sont maintenant visibles dans la communauté et tous les classements.`);
+                btn.textContent = '✓ APPLIQUÉ';
+            } catch (e) {
+                console.error(e);
+                alert("Erreur : " + e.message);
+                btn.disabled = false; btn.textContent = '💾 APPLIQUER LES LIAISONS';
+            }
+        }
+
+        document.getElementById('btnApply').addEventListener('click', applyLinks);
+
+        // INIT
+        await loadUsers();
+        renderGrid();
+    </script>
+</body>
+</html>

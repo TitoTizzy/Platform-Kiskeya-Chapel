@@ -100,6 +100,10 @@
                         tousLesJoueurs.push(u);
                     }
                 });
+                // Tri alphabétique par pseudo (insensible à la casse + accents)
+                tousLesJoueurs.sort((a, b) =>
+                    (a.pseudo || '').localeCompare(b.pseudo || '', 'fr', { sensitivity: 'base' })
+                );
                 afficherMembres(tousLesJoueurs);
             } catch (error) { console.error("Erreur Firebase:", error); }
         }
@@ -149,10 +153,12 @@
 
         window.filtrerMembres = function() {
             const query = document.getElementById('searchInput').value.toLowerCase();
-            const resultats = tousLesJoueurs.filter(j => 
-                j.nom_complet.toLowerCase().includes(query) || 
-                j.pseudo.toLowerCase().includes(query)
-            );
+            const resultats = tousLesJoueurs.filter(j => {
+                const nom = (j.nom_complet || '').toLowerCase();
+                const pseudo = (j.pseudo || '').toLowerCase();
+                return nom.includes(query) || pseudo.includes(query);
+            });
+            // Liste déjà triée → resultats restent triés (filter préserve l'ordre)
             afficherMembres(resultats);
         };
 
@@ -205,6 +211,10 @@
         };
 
         window.closeProfile = function() { document.getElementById("profileModal").style.display = "none"; };
+
+        // Recherche réactive (au fur et à mesure que l'on tape)
+        document.getElementById('searchInput').addEventListener('input', () => window.filtrerMembres());
+
         chargerMembres();
     </script>
 </body>

@@ -164,6 +164,27 @@ html, body {
 }
 .ranking-tabs-mobile select:focus { outline: none; box-shadow: 0 0 0 3px rgba(241,196,15,0.2); }
 
+/* Force les couleurs des options quand le picker est ouvert */
+.ranking-tabs-mobile select option,
+.ranking-tabs-mobile select optgroup {
+    background: #0a0a0a !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    padding: 10px;
+}
+.ranking-tabs-mobile select optgroup {
+    background: #1a1a1a !important;
+    color: var(--jaune-or) !important;
+    font-weight: 900;
+    font-style: normal;
+    letter-spacing: 1px;
+}
+.ranking-tabs-mobile select option:checked,
+.ranking-tabs-mobile select option:hover {
+    background: var(--jaune-or) !important;
+    color: #000 !important;
+}
+
 /* Bascule selon l'écran */
 @media (max-width: 1024px) {
     .ranking-tabs { display: none; }
